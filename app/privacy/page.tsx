@@ -1,0 +1,22 @@
+import "../landing.css";
+
+export const metadata = { title: "Privacy · Still With You" };
+
+export default function Privacy() {
+  return (
+    <main className="landing">
+      <section className="l-section narrow l-prose">
+        <a className="l-back" href="/">&larr; Still With You</a>
+        <h1>Privacy</h1>
+        <p>Grief is personal. This early version of Still With You is built so that what you write stays with you.</p>
+        <h2>What stays on your device</h2>
+        <p>Your name, the names of the people you are grieving, check-ins, journal entries, and settings are saved only in this browser on this device. We don&rsquo;t receive them. Clearing your browser data removes them.</p>
+        <h2>What we collect</h2>
+        <p>If you join the waitlist, we store your email address so we can tell you when new features are ready. We don&rsquo;t sell it or share it, and you can ask us to delete it at any time.</p>
+        <h2>Care, not a substitute for care</h2>
+        <p>Still With You does not replace counseling, pastoral care, medical care, or crisis services. If you are in danger, call or text 988 (US) or your local emergency number.</p>
+        <p className="l-muted">This page describes the current early version and will be updated, with a full privacy policy, before accounts or cloud backup are introduced.</p>
+      </section>
+    </main>
+  );
+}

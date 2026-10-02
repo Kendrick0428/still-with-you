@@ -1,0 +1,72 @@
+/* Landing: the same "first light" world as the app. A dusk sky hero, then cream pages with generous serif headings. */
+:root {
+  --page: #f6f1e9; --surface: #fffdf9; --ink: #1d2836; --ink-2: #5d6876; --hair: rgba(29,40,54,.1);
+  --blue: #34516f; --blue-ink: #fdfaf4; --gold: #a98146; --glow: #f2d39b; --gold-wash: #f7ecd9;
+  --sky-1: #56688a; --sky-2: #a796ad; --sky-3: #f0c49a; --sun: #ffe0b0; --hill-1: #6f7c96; --hill-2: #f6f1e9;
+  --display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --body: "Figtree", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --page: #141a22; --surface: #1c2430; --ink: #efe9df; --ink-2: #a5adb9; --hair: rgba(239,233,223,.12);
+  --blue: #a9c3dc; --blue-ink: #141a22; --gold: #dcb877; --gold-wash: #2a2620;
+  --sky-1: #0f1a2c; --sky-2: #2a3654; --sky-3: #6d5a6e; --sun: #f3d9a8; --hill-1: #1b2536; --hill-2: #141a22; color-scheme: dark;
+} }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--page); color: var(--ink); font-family: var(--body); font-size: 18px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.landing h1, .landing h2, .landing h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; font-variation-settings: "SOFT" 100, "opsz" 72; letter-spacing: -.01em; }
+.landing em { font-family: var(--display); font-style: italic; font-variation-settings: "SOFT" 100; }
+.landing p { margin: 0; }
+.landing a { color: inherit; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+.l-hero { position: relative; isolation: isolate; color: #fdf8f0; padding: 0 20px 150px; min-height: 640px; display: flex; flex-direction: column; }
+.l-sky { position: absolute; inset: 0; z-index: -1; overflow: hidden; background: linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 50%, var(--sky-3) 82%); }
+.l-sun { position: absolute; left: 50%; bottom: -60px; width: 460px; height: 460px; margin-left: -230px; border-radius: 50%; background: radial-gradient(circle, var(--sun) 0 14%, color-mix(in srgb, var(--sun) 45%, transparent) 32%, transparent 68%); animation: sunrise 3s cubic-bezier(.2,.6,.2,1) both; }
+@keyframes sunrise { from { transform: translateY(120px); opacity: .4; } to { transform: none; opacity: 1; } }
+.l-hills { position: absolute; left: 0; right: 0; bottom: -1px; width: 100%; height: 160px; }
+.l-nav { max-width: 1080px; width: 100%; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 22px 0; gap: 16px; }
+.l-brand { font-family: var(--display); font-size: 1.4rem; }
+.l-navlink { font-weight: 600; font-size: .95rem; text-decoration: none; padding: 9px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.45); background: rgba(255,255,255,.12); backdrop-filter: blur(10px); }
+.l-hero-in { max-width: 760px; margin: auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 22px; padding-top: 40px; }
+.l-hero h1 { font-size: clamp(2.6rem, 7vw, 4.6rem); line-height: 1.02; font-weight: 350; }
+.l-lead { font-size: 1.15rem; max-width: 36rem; color: rgba(253,248,240,.88); }
+.l-eyebrow { font-size: .74rem; letter-spacing: .18em; text-transform: uppercase; font-weight: 600; color: rgba(253,248,240,.85); }
+.l-eyebrow.dark { color: var(--gold); }
+.l-ctas { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+.landing .l-btn { display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 999px; padding: 16px 26px; font: inherit; font-weight: 600; font-size: 1rem; text-decoration: none; background: #fdf8f0; color: #1d2836; cursor: pointer; }
+.landing .l-btn.ghost { background: rgba(255,255,255,.14); color: #fdf8f0; border: 1px solid rgba(255,255,255,.5); backdrop-filter: blur(10px); }
+.landing .l-section .l-btn { background: var(--blue); color: var(--blue-ink); }
+.l-btn:disabled { opacity: .5; }
+
+.l-section { max-width: 1080px; margin: 0 auto; padding: 90px 20px; display: flex; flex-direction: column; gap: 18px; }
+.l-section.narrow { max-width: 680px; }
+.l-section h2 { font-size: clamp(2rem, 4.4vw, 2.9rem); line-height: 1.08; }
+.l-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; margin-top: 18px; }
+.l-feature { background: var(--surface); border: 1px solid var(--hair); border-radius: 24px; padding: 26px; display: flex; flex-direction: column; gap: 10px; }
+.l-feature h3 { font-size: 1.45rem; }
+.l-feature p, .l-muted { color: var(--ink-2); }
+
+.l-quote { background: var(--gold-wash); text-align: center; padding: 80px 20px; }
+.l-quote blockquote { margin: 0 auto; max-width: 760px; font-family: var(--display); font-size: clamp(1.7rem, 4vw, 2.6rem); line-height: 1.25; font-weight: 350; font-variation-settings: "SOFT" 100, "opsz" 72; }
+.l-quote cite { display: block; margin-top: 18px; font-style: normal; font-size: .8rem; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
+
+.l-never { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; }
+.l-never li { padding-left: 30px; position: relative; color: var(--ink-2); }
+.l-never li::before { content: ""; position: absolute; left: 4px; top: .7em; width: 12px; height: 1px; background: var(--gold); }
+
+.l-form { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.l-form input { flex: 1 1 240px; min-width: 0; font: inherit; padding: 15px 18px; border-radius: 999px; border: 1px solid var(--hair); background: var(--surface); color: var(--ink); }
+.l-form input:focus { outline: none; border-color: var(--blue); }
+.l-error { flex-basis: 100%; color: #a5483a; font-size: .95rem; }
+.l-thanks { font-family: var(--display); font-size: 1.4rem; }
+
+.l-footer { border-top: 1px solid var(--hair); max-width: 1080px; margin: 0 auto; padding: 36px 20px 48px; font-size: .9rem; color: var(--ink-2); display: flex; flex-direction: column; gap: 12px; }
+.l-footlinks a { text-decoration: none; font-weight: 600; }
+
+.l-prose { gap: 14px; }
+.l-prose h1 { font-size: 2.8rem; }
+.l-prose h2 { font-size: 1.6rem; margin-top: 18px; }
+.l-back { text-decoration: none; font-weight: 600; color: var(--ink-2); }
+@media (prefers-reduced-motion: reduce) { .l-sun { animation: none; } }
