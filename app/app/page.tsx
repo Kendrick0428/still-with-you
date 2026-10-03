@@ -3,6 +3,7 @@ import Script from "next/script";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import "./app.css";
+import AccountBridge from "./account-bridge";
 
 export const metadata: Metadata = { title: "Still With You" };
 
@@ -12,6 +13,7 @@ const shell = readFileSync(join(process.cwd(), "app/app/device.html"), "utf8");
 export default function AppPage() {
   return (
     <>
+      <AccountBridge />
       <div className="app-root" dangerouslySetInnerHTML={{ __html: shell }} />
       <Script src="/swy-app.js" strategy="afterInteractive" />
     </>

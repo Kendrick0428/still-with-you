@@ -19,7 +19,7 @@ let draft = null;
 let _tab = '';
 
 const loadJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') ?? d; } catch (e) { return d; } };
-const saveJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+const saveJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} queueSync(); };
 let settings = loadJSON('swy-settings', { pin: '', backup: false, quiet: true, quietFrom: '21:00', quietTo: '08:00', dateReminders: false });
 const saveSettings = () => saveJSON('swy-settings', settings);
 
@@ -33,7 +33,30 @@ const CAUSES = {
   'Miscarriage, stillbirth, or infant loss': 'Your baby was real, and so is your grief, however short their life. You do not need anyone’s permission to mourn them or to speak their name.',
   'Violence': 'Losing someone to violence can bring fear, anger, and a long road through processes that are not about your healing. All of what you feel, anger included, is welcome here.',
 };
-const save = () => { try { localStorage.setItem('swy-profile', JSON.stringify(profile)); } catch (e) {} };
+const save = () => { try { localStorage.setItem('swy-profile', JSON.stringify(profile)); } catch (e) {} queueSync(); };
+
+/* ---------- Account sync: only active when accounts are configured (see app/app/account-bridge.tsx) ---------- */
+const acct = () => (window.swyAccount && window.swyAccount.enabled ? window.swyAccount : null);
+const signedIn = () => !!(acct() && acct().email());
+// The app lock code never leaves this device.
+const snapshot = () => ({ v: 1, profile, settings: { ...settings, pin: '' }, tasks: loadJSON('swy-tasks', {}) });
+let pushTimer = null;
+function queueSync() {
+  if (!signedIn()) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => acct().push(snapshot()), 800);
+}
+function adopt(remote) {
+  if (remote.profile) { profile = remote.profile; try { localStorage.setItem('swy-profile', JSON.stringify(profile)); } catch (e) {} }
+  if (remote.settings) { settings = { ...settings, ...remote.settings, pin: settings.pin }; try { localStorage.setItem('swy-settings', JSON.stringify(settings)); } catch (e) {} }
+  if (remote.tasks) { try { localStorage.setItem('swy-tasks', JSON.stringify(remote.tasks)); } catch (e) {} }
+}
+/* After signing in: the account's saved copy wins if it has anyone in it; otherwise this device's entries move into the account. */
+async function syncAfterSignIn() {
+  const remote = await acct().pull();
+  if (remote && remote.profile && remote.profile.people && remote.profile.people.length) adopt(remote);
+  else if (profile.people.length) await acct().push(snapshot());
+}
 
 const MARK = `<svg class="mark" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="27" fill="none" stroke="var(--gold)" stroke-width="1.2"/><path d="M28 40c-7-5-12-9.5-12-15a6 6 0 0 1 12-1.5A6 6 0 0 1 40 25c0 5.5-5 10-12 15z" fill="none" stroke="var(--blue)" stroke-width="1.6" stroke-linejoin="round"/><path d="M28 12v6M25 15h6" stroke="var(--gold)" stroke-width="1.4" stroke-linecap="round"/></svg>`;
 
@@ -122,6 +145,7 @@ function welcome() {
         <button class="btn" onclick="stepName()">Begin</button>
         <button class="btn ghost" onclick="useSample()">Look around with an example first</button>
         ${profile.name && profile.people.length ? `<button class="btn link" onclick="home()">Continue as ${esc(profile.name)}</button>` : ''}
+        ${acct() && !signedIn() ? `<button class="btn link" onclick="accountScreen('signin')">I already have an account</button>` : ''}
       </div>
     </div>`, false, { rising: true });
 }
@@ -243,6 +267,10 @@ function home() {
     <div class="body">
       ${profile.people.length > 1 ? `<div class="focus"><span class="eyebrow">Today I\u2019m thinking of</span>
         <div class="chips"><button class="chip" aria-pressed="${profile.focus < 0}" onclick="setFocus(-1)">All of them</button>${profile.people.map((p, i) => `<button class="chip" aria-pressed="${profile.focus === i}" onclick="setFocus(${i})">${esc(p.name)}</button>`).join('')}</div></div>` : ''}
+
+      ${acct() && !signedIn() && !settings.acctDismissed ? `<div class="note-card"><span class="eyebrow">Keep everything safe</span>
+        <p>Create a free account so ${esc(L())}’s place here, your check-ins, and your notes are kept safe and with you on any device.</p>
+        <div class="row"><button class="play" style="padding-left:16px" onclick="accountScreen('signup')">Create a free account</button><button class="tiny-btn" onclick="settings.acctDismissed=true;saveSettings();home()">Not now</button></div></div>` : ''}
 
       <section class="sec">
         <div class="sec-head"><h3>How is your heart today?</h3></div>
@@ -498,6 +526,11 @@ function settingsScreen() {
   render(`<button class="back" onclick="home()">Home</button>
     <span class="eyebrow">Privacy and settings</span>
     <h2>Your space, your rules</h2>
+    ${acct() ? (signedIn() ? `<div class="card"><strong>Your account</strong>
+      <p class="muted small">Signed in as ${esc(acct().email())}. Your entries are saved to your account and only you can see them.</p>
+      <div class="row"><button class="tiny-btn" id="so">Sign out</button><button class="tiny-btn" id="del">Delete my saved data</button></div><p id="delmsg" class="muted small" hidden></p></div>`
+      : `<div class="card"><strong>Your account</strong><p class="muted small">Right now your entries are saved only on this device. A free account keeps them safe if you lose your phone.</p>
+      <div class="row"><button class="tiny-btn" onclick="accountScreen('signup')">Create account</button><button class="tiny-btn" onclick="accountScreen('signin')">Sign in</button></div></div>`) : ''}
     <div class="card"><strong>App lock</strong>
       <p class="muted small">Ask for a passcode when the app opens. The full app would use Face ID or your phone’s passcode.</p>
       ${settings.pin ? '<button class="tiny-btn" id="off">Turn off app lock</button>' : `<div class="field"><label for="pin" class="small">Choose a 4-digit code</label><input id="pin" inputmode="numeric" maxlength="4"></div><button class="tiny-btn" id="on">Turn on app lock</button>`}
@@ -515,6 +548,13 @@ function settingsScreen() {
       <label class="task"><input type="checkbox" id="dr" ${settings.dateReminders ? 'checked' : ''}><span>Gently let me know before birthdays and anniversaries</span></label>
       <p class="muted small">Off unless you turn it on.</p>
     </div>`);
+  const so = $('#so'), del = $('#del');
+  if (so) so.onclick = async () => { await acct().signOut(); settingsScreen(); };
+  if (del) del.onclick = () => {
+    const m = $('#delmsg'); m.hidden = false;
+    m.innerHTML = 'This permanently removes everything saved to your account. This device keeps its copy. <button class="tiny-btn" id="delyes">Yes, delete it</button>';
+    $('#delyes').onclick = async () => { const r = await acct().deleteData(); m.textContent = r.error || 'Your saved data was deleted from your account.'; if (!r.error) await acct().signOut(); };
+  };
   const on = $('#on'), off = $('#off');
   if (on) on.onclick = () => { const v = $('#pin').value; if (/^\d{4}$/.test(v)) { settings.pin = v; saveSettings(); settingsScreen(); } else $('#pin').focus(); };
   if (off) off.onclick = () => { settings.pin = ''; saveSettings(); settingsScreen(); };
@@ -536,4 +576,49 @@ function lockScreen() {
   $('#forgot').onclick = () => { settings.pin = ''; saveSettings(); home(); };
 }
 
-if (settings.pin && profile.people.length) lockScreen(); else welcome();
+function accountScreen(mode = 'signup') {
+  const up = mode === 'signup';
+  const back = profile.people.length ? 'home()' : 'welcome()';
+  render(`<button class="back" onclick="${back}">Back</button>
+    <span class="eyebrow">${up ? 'Create your free account' : 'Welcome back'}</span>
+    <h2>${up ? 'Keep everything safe, on any device' : 'Sign in to Still With You'}</h2>
+    <p class="muted">${up ? 'Your entries stay private. Only you can see them.' : 'Everything you saved will be here.'}</p>
+    <form id="af" class="sec" novalidate>
+      <div class="field"><label for="ae">Email</label><input id="ae" type="email" autocomplete="email" required autofocus></div>
+      <div class="field"><label for="ap">Password</label><input id="ap" type="password" autocomplete="${up ? 'new-password' : 'current-password'}" minlength="8" required>${up ? '<p class="muted small" style="margin-top:6px">At least 8 characters.</p>' : ''}</div>
+      <p id="amsg" class="muted" role="status" hidden></p>
+      <button class="btn" id="ago">${up ? 'Create account' : 'Sign in'}</button>
+    </form>
+    ${up ? `<button class="btn link" onclick="accountScreen('signin')">I already have an account</button>`
+         : `<button class="btn link" onclick="accountScreen('signup')">Create a new account</button><button class="btn link small" id="forgot">Forgot your password?</button>`}`);
+  const msg = (t) => { const m = $('#amsg'); m.hidden = false; m.textContent = t; };
+  $('#af').onsubmit = async (e) => {
+    e.preventDefault();
+    const email = $('#ae').value.trim(), pw = $('#ap').value;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return msg('Please enter a valid email address.');
+    if (pw.length < 8) return msg('Please use a password with at least 8 characters.');
+    const go = $('#ago'); go.disabled = true; go.textContent = up ? 'Creating your account…' : 'Signing in…';
+    const r = up ? await acct().signUp(email, pw) : await acct().signIn(email, pw);
+    go.disabled = false; go.textContent = up ? 'Create account' : 'Sign in';
+    if (r.error) return msg(r.error);
+    if (r.needsConfirm) return msg(`Almost done. We sent a link to ${email}. Open it on this device to confirm your account, and everything here will be saved to it.`);
+    await syncAfterSignIn();
+    profile.people.length ? home() : stepName();
+  };
+  const f = $('#forgot');
+  if (f) f.onclick = async () => {
+    const email = $('#ae').value.trim();
+    if (!email) return msg('Enter your email above, then tap “Forgot your password?” again.');
+    const r = await acct().resetPassword(email);
+    msg(r.error || `If there’s an account for ${email}, we sent a link to reset your password.`);
+  };
+}
+
+/* Wait briefly for the account bridge so a signed-in person sees their saved entries on a new device. */
+let booted = false;
+async function boot() {
+  if (booted) return; booted = true;
+  if (signedIn()) { try { await syncAfterSignIn(); } catch (e) {} }
+  if (settings.pin && profile.people.length) lockScreen(); else welcome();
+}
+if (window.swyAccount) boot(); else { window.addEventListener('swy-account-ready', boot, { once: true }); setTimeout(boot, 1500); }
