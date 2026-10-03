@@ -56,3 +56,5 @@ Still With You Plus is $6.99 a month or $49 a year, with a 7-day free trial for 
 - "Manage my plan" opens Stripe's customer portal. In Stripe, open Settings → Billing → Customer portal and click Save once so it's turned on.
 - The app asks Stripe directly whether the signed-in person has an active plan (`/api/billing/status`), so no webhook is needed.
 - Routes: `/api/billing/checkout`, `/api/billing/status`, `/api/billing/portal`. Helpers are in `lib/billing.ts`.
+
+To try checkout in test mode, use Stripe's test card `4242 4242 4242 4242` with any future date, any CVC and any ZIP.
