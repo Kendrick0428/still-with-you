@@ -2,6 +2,8 @@
 
 A Christian grief companion web app. "You don't have to grieve alone."
 
+Live at https://still-with-you-iota.vercel.app
+
 ## Routes
 
 - `/` landing page with a waitlist signup
