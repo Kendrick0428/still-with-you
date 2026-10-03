@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 type Snapshot = Record<string, unknown>;
+type Plan = { available: boolean; plan: "free" | "plus"; status?: string; interval?: string | null; trialEnds?: number | null; renews?: number | null; cancelsAtEnd?: boolean; error?: string };
 
 declare global {
   interface Window {
@@ -16,6 +17,9 @@ declare global {
       pull: () => Promise<Snapshot | null>;
       push: (data: Snapshot) => Promise<void>;
       deleteData: () => Promise<{ error?: string }>;
+      plan: () => Promise<Plan>;
+      checkout: (plan: "month" | "year") => Promise<{ error?: string }>;
+      managePlan: () => Promise<{ error?: string }>;
     };
   }
 }
@@ -41,6 +45,21 @@ export default function AccountBridge() {
     let email: string | null = null;
     let userId: string | null = null;
     if (url && key) sb = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } });
+
+    // Calls the billing routes with the signed-in person's token so the server knows who is asking.
+    const billing = async (path: string, method: string, body?: unknown): Promise<Record<string, unknown>> => {
+      try {
+        const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
+        const res = await fetch(`/api/billing/${path}`, {
+          method,
+          headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        return await res.json();
+      } catch {
+        return { error: "We couldn’t reach Still With You just now. Please check your connection." };
+      }
+    };
 
     const ready = async () => {
       if (sb) {
@@ -82,6 +101,20 @@ export default function AccountBridge() {
           if (!sb || !userId) return;
           const { error } = await sb.from("user_data").upsert({ user_id: userId, data, updated_at: new Date().toISOString() });
           if (error) console.error("Couldn’t save account data", error);
+        },
+        async plan() {
+          const r = await billing("status", "GET");
+          return r.error ? { available: false, plan: "free", error: String(r.error) } : (r as Plan);
+        },
+        async checkout(plan) {
+          const r = await billing("checkout", "POST", { plan });
+          if (r.url) { location.href = r.url as string; return {}; }
+          return { error: (r.error as string) || "We couldn’t open checkout just now. Please try again." };
+        },
+        async managePlan() {
+          const r = await billing("portal", "POST");
+          if (r.url) { location.href = r.url as string; return {}; }
+          return { error: (r.error as string) || "We couldn’t open your plan settings just now. Please try again." };
         },
         async deleteData() {
           if (!sb || !userId) return { error: "You’re not signed in." };

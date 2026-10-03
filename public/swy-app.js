@@ -39,6 +39,21 @@ const save = () => { try { localStorage.setItem('swy-profile', JSON.stringify(pr
 const acct = () => (window.swyAccount && window.swyAccount.enabled ? window.swyAccount : null);
 const signedIn = () => !!(acct() && acct().email());
 // The app lock code never leaves this device.
+/* Plus plan. Checked with the server when signed in; cached so the app opens instantly. Free if billing isn't set up. */
+let plan = loadJSON('swy-plan', { available: false, plan: 'free' });
+const isPlus = () => plan.plan === 'plus';
+const plansOn = () => !!(acct() && plan.available);
+async function refreshPlan() {
+  if (!acct()) return;
+  const p = await acct().plan();
+  if (p.error) return;
+  plan = signedIn() ? p : { available: p.available, plan: 'free' };
+  try { localStorage.setItem('swy-plan', JSON.stringify(plan)); } catch (e) {}
+}
+const plusOnly = (open, feature) => (!plansOn() || isPlus()) ? open() : plansScreen(feature);
+function companion() { plusOnly(() => later('Talk About My Grief', 'A gentle conversation space where you can say what\u2019s on your heart, like \u201cToday would have been our anniversary,\u201d and receive a caring response.'), 'companion'); }
+function vault() { _tab = 'remember'; plusOnly(() => later('Remember ' + L(), 'Your private Memory Vault for photos, stories, recipes, songs, favorite sayings, and letters to ' + L() + '.'), 'vault'); }
+
 const snapshot = () => ({ v: 1, profile, settings: { ...settings, pin: '' }, tasks: loadJSON('swy-tasks', {}) });
 let pushTimer = null;
 function queueSync() {
@@ -116,7 +131,7 @@ const hr = new Date().getHours();
 device.classList.add(hr < 11 ? 't-morning' : hr < 17 ? 't-day' : 't-evening');
 $('#clock').textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?[AP]M/i, '');
 
-const TABS = [['today', 'Today', 'home()'], ['pray', 'Pray', 'prayer()'], ['journal', 'Journal', 'journal()'], ['remember', 'Remember', "later('Remember ' + L(), 'Your private Memory Vault for photos, stories, recipes, songs, favorite sayings, and letters to ' + L() + '.')"], ['support', 'Support', 'support()']];
+const TABS = [['today', 'Today', 'home()'], ['pray', 'Pray', 'prayer()'], ['journal', 'Journal', 'journal()'], ['remember', 'Remember', 'vault()'], ['support', 'Support', 'support()']];
 const tabs = $('#tabs');
 
 /* calm: hard-day night mode. opt.tab marks the active tab; opt.hero for the home sky header; opt.rising for the welcome sunrise. */
@@ -302,9 +317,9 @@ function home() {
         <div class="sec-head"><h3>What would help?</h3></div>
         <div class="quick">
           <button onclick="prayer()"><span class="well">${icon('pray')}</span>Pray with me</button>
-          <button onclick="later('Talk About My Grief', 'A gentle conversation space where you can say what\u2019s on your heart, like \u201cToday would have been our anniversary,\u201d and receive a caring response.')"><span class="well">${icon('talk')}</span>Talk about my grief</button>
+          <button onclick="companion()"><span class="well">${icon('talk')}</span>Talk about my grief</button>
           <button onclick="journal()"><span class="well">${icon('journal')}</span>Write in my journal</button>
-          <button onclick="later('Remember ' + L(), 'Your private Memory Vault for photos, stories, recipes, songs, favorite sayings, and letters to ' + L() + '.')"><span class="well">${icon('remember')}</span>Remember ${esc(L())}</button>
+          <button onclick='vault()'><span class="well">${icon('remember')}</span>Remember ${esc(L())}</button>
           <button onclick="breathe()"><span class="well">${icon('breathe')}</span>Breathe with me</button>
           <button onclick="support()"><span class="well">${icon('support')}</span>I need support</button>
         </div>
@@ -531,6 +546,7 @@ function settingsScreen() {
       <div class="row"><button class="tiny-btn" id="so">Sign out</button><button class="tiny-btn" id="del">Delete my saved data</button></div><p id="delmsg" class="muted small" hidden></p></div>`
       : `<div class="card"><strong>Your account</strong><p class="muted small">Right now your entries are saved only on this device. A free account keeps them safe if you lose your phone.</p>
       <div class="row"><button class="tiny-btn" onclick="accountScreen('signup')">Create account</button><button class="tiny-btn" onclick="accountScreen('signin')">Sign in</button></div></div>`) : ''}
+    ${planCard()}
     <div class="card"><strong>App lock</strong>
       <p class="muted small">Ask for a passcode when the app opens. The full app would use Face ID or your phone’s passcode.</p>
       ${settings.pin ? '<button class="tiny-btn" id="off">Turn off app lock</button>' : `<div class="field"><label for="pin" class="small">Choose a 4-digit code</label><input id="pin" inputmode="numeric" maxlength="4"></div><button class="tiny-btn" id="on">Turn on app lock</button>`}
@@ -548,8 +564,11 @@ function settingsScreen() {
       <label class="task"><input type="checkbox" id="dr" ${settings.dateReminders ? 'checked' : ''}><span>Gently let me know before birthdays and anniversaries</span></label>
       <p class="muted small">Off unless you turn it on.</p>
     </div>`);
+  const pman = $('#pman'), pchk = $('#pchk');
+  if (pman) pman.onclick = async function () { this.disabled = true; const r = await acct().managePlan(); if (r.error) { this.disabled = false; const m = $('#pmsg'); m.hidden = false; m.textContent = r.error; } };
+  if (pchk) pchk.onclick = async function () { this.textContent = 'Checking…'; await refreshPlan(); settingsScreen(); };
   const so = $('#so'), del = $('#del');
-  if (so) so.onclick = async () => { await acct().signOut(); settingsScreen(); };
+  if (so) so.onclick = async () => { await acct().signOut(); await refreshPlan(); settingsScreen(); };
   if (del) del.onclick = () => {
     const m = $('#delmsg'); m.hidden = false;
     m.innerHTML = 'This permanently removes everything saved to your account. This device keeps its copy. <button class="tiny-btn" id="delyes">Yes, delete it</button>';
@@ -576,6 +595,65 @@ function lockScreen() {
   $('#forgot').onclick = () => { settings.pin = ''; saveSettings(); home(); };
 }
 
+/* ---------- Still With You Plus ---------- */
+let chosenPlan = 'year';
+const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+function plansScreen(feature = '') {
+  const lead = feature === 'companion' ? 'Talk about your grief any time, day or night.'
+    : feature === 'vault' ? `Keep every memory of ${esc(L())} in one safe place.`
+    : 'More room to remember, and more ways to be held.';
+  const trial = !plan.everSubscribed;
+  const back = profile.people.length ? 'home()' : 'welcome()';
+  render(`<button class="back" onclick="${back}">Back</button>
+    <div class="plus-head"><span class="eyebrow">Still With You Plus</span><h2>${lead}</h2>
+    <p class="muted">${trial ? 'Try everything free for 7 days. You won’t be charged until the trial ends, and you can cancel any time before then.' : 'Cancel any time.'}</p></div>
+    <ul class="plus-list sec">
+      <li><span><strong>A grief companion to talk with</strong><br><span class="muted small">Say what’s on your heart and receive a caring, faith-centered response.</span></span></li>
+      <li><span><strong>Your Memory Vault</strong><br><span class="muted small">Photos, stories, recipes, songs, and letters, kept private and safe.</span></span></li>
+      <li><span><strong>Audio prayers and scripture</strong><br><span class="muted small">Listen when reading feels like too much.</span></span></li>
+      <li><span><strong>Backup across your devices</strong><br><span class="muted small">Nothing you’ve saved is lost if you lose your phone.</span></span></li>
+    </ul>
+    <div class="plans" role="radiogroup" aria-label="Choose a plan">
+      <button class="plan" role="radio" data-plan="year"><span class="tag">Best value</span><span class="radio"></span><span class="t"><strong>Yearly</strong><span class="muted small">About $4.08 a month</span></span><span class="price">$49<span class="muted small"> / year</span></span></button>
+      <button class="plan" role="radio" data-plan="month"><span class="radio"></span><span class="t"><strong>Monthly</strong><span class="muted small">Billed each month</span></span><span class="price">$6.99<span class="muted small"> / mo</span></span></button>
+    </div>
+    <p id="pmsg" class="muted" role="status" hidden></p>
+    <button class="btn" id="pgo">${!signedIn() ? 'Create a free account first' : trial ? 'Start my free week' : 'Continue'}</button>
+    ${!signedIn() ? `<button class="btn link small" onclick="accountScreen('signin')">I already have an account</button>` : ''}
+    <div class="free-forever"><span class="eyebrow">Always free</span>
+      <p class="muted small" style="margin-top:6px">Hard-day mode, the daily prayer, journaling, and crisis help are free for everyone, forever. No one should have to pay for comfort on their hardest day.</p></div>
+    <p class="muted small">Payments are handled securely by Stripe. Still With You never sees your card number.</p>`);
+  const pick = (k) => { chosenPlan = k; document.querySelectorAll('.plan').forEach(b => { const on = b.dataset.plan === k; b.setAttribute('aria-pressed', on); b.setAttribute('aria-checked', on); }); };
+  document.querySelectorAll('.plan').forEach(b => b.onclick = () => pick(b.dataset.plan));
+  pick(chosenPlan);
+  $('#pgo').onclick = async function () {
+    if (!signedIn()) { afterAccount = () => plansScreen(feature); return accountScreen('signup'); }
+    this.disabled = true; this.textContent = 'Opening secure checkout…';
+    const r = await acct().checkout(chosenPlan);
+    if (r.error) { this.disabled = false; this.textContent = trial ? 'Start my free week' : 'Continue'; const m = $('#pmsg'); m.hidden = false; m.textContent = r.error; }
+  };
+}
+async function plusWelcome() {
+  render(`<div class="welcome" style="justify-content:center"><p class="muted">Getting everything ready…</p></div>`);
+  for (let i = 0; i < 4 && !isPlus(); i++) { await refreshPlan(); if (!isPlus()) await new Promise(r => setTimeout(r, 1500)); }
+  if (!isPlus()) return render(`<button class="back" onclick="home()">Home</button><h2>Thank you</h2>
+    <p class="muted">Your payment went through. It can take a moment to show here. If Plus isn’t turned on in a few minutes, open Privacy and settings and tap “Check my plan”.</p>`);
+  render(`<div class="welcome" style="justify-content:center;gap:18px">${MARK}
+    <span class="eyebrow">Welcome to Plus</span><h2>We’re glad you’re here</h2>
+    <p class="muted">${plan.trialEnds ? `Your free week runs until ${fmtDate(plan.trialEnds)}. We’ll email you before it ends.` : 'Everything in Plus is ready for you.'}</p>
+    <button class="btn" onclick="home()">Continue</button></div>`);
+}
+function planCard() {
+  if (!plansOn() || !signedIn()) return '';
+  if (!isPlus()) return `<div class="card"><strong>Your plan</strong><p class="muted small">You’re on the free plan. Everything you need on a hard day stays free.</p>
+    <div class="row"><button class="tiny-btn" onclick="plansScreen()">See Still With You Plus</button><button class="tiny-btn" id="pchk">Check my plan</button></div></div>`;
+  const when = plan.status === 'trialing' && plan.trialEnds ? `Free trial until ${fmtDate(plan.trialEnds)}`
+    : plan.cancelsAtEnd && plan.renews ? `Ends ${fmtDate(plan.renews)}` : plan.renews ? `Renews ${fmtDate(plan.renews)}` : '';
+  return `<div class="card"><strong>Still With You Plus</strong><p class="muted small">${plan.interval === 'year' ? 'Yearly' : 'Monthly'}${when ? ' · ' + when : ''}${plan.status === 'past_due' ? ' · Your last payment didn’t go through' : ''}</p>
+    <div class="row"><button class="tiny-btn" id="pman">Manage my plan</button></div><p id="pmsg" class="muted small" hidden></p></div>`;
+}
+
+let afterAccount = null;
 function accountScreen(mode = 'signup') {
   const up = mode === 'signup';
   const back = profile.people.length ? 'home()' : 'welcome()';
@@ -603,6 +681,9 @@ function accountScreen(mode = 'signup') {
     if (r.error) return msg(r.error);
     if (r.needsConfirm) return msg(`Almost done. We sent a link to ${email}. Open it on this device to confirm your account, and everything here will be saved to it.`);
     await syncAfterSignIn();
+    await refreshPlan();
+    const next = afterAccount; afterAccount = null;
+    if (next && profile.people.length) return next();
     profile.people.length ? home() : stepName();
   };
   const f = $('#forgot');
@@ -619,6 +700,14 @@ let booted = false;
 async function boot() {
   if (booted) return; booted = true;
   if (signedIn()) { try { await syncAfterSignIn(); } catch (e) {} }
-  if (settings.pin && profile.people.length) lockScreen(); else welcome();
+  const ret = new URLSearchParams(location.search).get('plan');
+  if (ret) history.replaceState(null, '', location.pathname);
+  const has = profile.people.length > 0;
+  if (settings.pin && has) { refreshPlan(); return lockScreen(); }
+  if (ret === 'welcome' && has) return plusWelcome();
+  if (ret === 'manage' && has) { await refreshPlan(); return settingsScreen(); }
+  refreshPlan();
+  if (ret === 'cancel' && has) return plansScreen();
+  welcome();
 }
 if (window.swyAccount) boot(); else { window.addEventListener('swy-account-ready', boot, { once: true }); setTimeout(boot, 1500); }

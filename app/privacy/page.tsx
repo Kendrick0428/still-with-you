@@ -13,6 +13,8 @@ export default function Privacy() {
         <p>Your name, the names of the people you are grieving, check-ins, notes, and settings are saved only in this browser on this device. We don&rsquo;t receive them. Clearing your browser data removes them.</p>
         <h2>With a free account</h2>
         <p>If you create an account, those same entries are saved to our secure database (hosted by Supabase) so they&rsquo;re safe and available on your other devices. Each account can only ever read its own entries. Your app lock code is never uploaded. You can delete everything saved to your account at any time from Privacy and settings in the app.</p>
+        <h2>If you subscribe to Plus</h2>
+        <p>Payments are handled by Stripe. Your card details go straight to Stripe and never reach us. We share only your account email with Stripe so your plan is linked to you, and we never share anything you&rsquo;ve written in the app.</p>
         <h2>What else we collect</h2>
         <p>If you join the waitlist, we store your email address so we can tell you when new features are ready. We don&rsquo;t sell or share your information, and you can ask us to delete it at any time.</p>
         <h2>Care, not a substitute for care</h2>

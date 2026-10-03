@@ -46,3 +46,13 @@ Until those variables exist, the app hides every account option and works on-dev
 - `app/app/account-bridge.tsx`: sign-up, sign-in and sync, exposed to the app as `window.swyAccount`
 - `supabase/schema.sql`: database table and privacy rules
 - `app/page.tsx`, `app/landing.css`: the landing page
+
+## Plans and payments (Stripe)
+
+Still With You Plus is $6.99 a month or $49 a year, with a 7-day free trial for first-time subscribers. Hard-day mode, the daily prayer, journaling and crisis help stay free.
+
+- Add `STRIPE_SECRET_KEY` in Vercel (use the `sk_test_…` key until you're ready to take real payments). Without it the app shows no plans and nothing is locked.
+- The product and both prices are created in Stripe automatically the first time someone opens checkout (lookup keys `swy_plus_month` and `swy_plus_year`).
+- "Manage my plan" opens Stripe's customer portal. In Stripe, open Settings → Billing → Customer portal and click Save once so it's turned on.
+- The app asks Stripe directly whether the signed-in person has an active plan (`/api/billing/status`), so no webhook is needed.
+- Routes: `/api/billing/checkout`, `/api/billing/status`, `/api/billing/portal`. Helpers are in `lib/billing.ts`.
