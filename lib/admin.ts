@@ -8,7 +8,7 @@ export function adminEmails(): string[] {
 }
 
 // The signed-in person, but only if their email is confirmed and on the admin list.
-export async function currentAdmin(req: Request): Promise<{ email: string } | null> {
+export async function currentAdmin(req: Request): Promise<{ id: string; email: string; token: string } | null> {
   const allowed = adminEmails();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL, anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
@@ -16,12 +16,20 @@ export async function currentAdmin(req: Request): Promise<{ email: string } | nu
   const { data, error } = await createClient(url, anon, { auth: { persistSession: false } }).auth.getUser(token);
   const email = data.user?.email?.toLowerCase();
   if (error || !email || !data.user?.email_confirmed_at || !allowed.includes(email)) return null;
-  return { email };
+  return { id: data.user.id, email, token };
+}
+
+// A Supabase client acting as the signed-in owner, so row level security still applies.
+export function ownerDb(token: string) {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { persistSession: false },
+    global: { headers: { authorization: `Bearer ${token}` } },
+  });
 }
 
 const DAY = 86_400_000;
-const CAP = 2000; // enough for a long while; the page says when it was reached
-const LOOKUPS = new Set<string>(Object.values(PLANS).map((p) => p.lookup));
+export const CAP = 2000; // enough for a long while; the page says when it was reached
+export const LOOKUPS = new Set<string>(Object.values(PLANS).map((p) => p.lookup));
 
 type Sub = {
   id: string; email: string | null; status: string; interval: string | null; amount: number;
