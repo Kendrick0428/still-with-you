@@ -1095,11 +1095,50 @@ function accountScreen(mode = 'signup') {
   };
 }
 
+/* Email links: a password reset opens a screen to choose a new one; a used or old link explains what to do. */
+function handleAuthLink() {
+  const l = acct() && acct().authLink ? acct().authLink() : null;
+  if (l === 'recovery') { newPasswordScreen(); return true; }
+  if (l === 'expired') {
+    accountScreen('signin');
+    const m = $('#amsg'); m.hidden = false;
+    m.textContent = 'That email link has already been used or is too old. Enter your email and tap “Forgot your password?” for a fresh one, and open only the newest email.';
+    return true;
+  }
+  return false;
+}
+window.addEventListener('swy-auth-link', handleAuthLink);
+
+function newPasswordScreen() {
+  render(`<span class="eyebrow">Reset your password</span>
+    <h2>Choose a new password</h2>
+    <form id="nf" class="sec" novalidate>
+      <div class="field"><label for="np">New password</label><input id="np" type="password" autocomplete="new-password" minlength="8" required autofocus><p class="muted small" style="margin-top:6px">At least 8 characters.</p></div>
+      <p id="nmsg" class="muted" role="status" hidden></p>
+      <button class="btn" id="ngo">Save my new password</button>
+    </form>`);
+  $('#nf').onsubmit = async (e) => {
+    e.preventDefault();
+    const m = $('#nmsg'), p = $('#np').value;
+    if (p.length < 8) { m.hidden = false; m.textContent = 'Please use at least 8 characters.'; return; }
+    const go = $('#ngo'); go.disabled = true; go.textContent = 'Saving…';
+    const r = await acct().updatePassword(p);
+    if (r.error) { go.disabled = false; go.textContent = 'Save my new password'; m.hidden = false; m.textContent = r.error; return; }
+    await syncAfterSignIn();
+    await refreshPlan();
+    render(`<span class="eyebrow">All set</span><h2>Your new password is saved</h2>
+      <p class="muted">You’re signed in. Use your new password next time.</p>
+      <button class="btn" id="ndone">Continue</button>`);
+    $('#ndone').onclick = () => (profile.people.length ? home() : welcome());
+  };
+}
+
 /* Wait briefly for the account bridge so a signed-in person sees their saved entries on a new device. */
 let booted = false;
 async function boot() {
   if (booted) return; booted = true;
   if (signedIn()) { try { await syncAfterSignIn(); } catch (e) {} }
+  if (handleAuthLink()) return;
   const ret = new URLSearchParams(location.search).get('plan');
   if (ret) history.replaceState(null, '', location.pathname);
   const has = profile.people.length > 0;

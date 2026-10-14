@@ -1,5 +1,6 @@
 import "./landing.css";
 import WaitlistForm from "./waitlist-form";
+import AuthForward from "./auth-forward";
 
 const FEATURES = [
   ["I’m having a hard day", "One tap turns the app into a quiet night space: a prayer, a verse, a breath, or someone to call."],
@@ -13,6 +14,7 @@ const FEATURES = [
 export default function Landing() {
   return (
     <main className="landing">
+      <AuthForward />
       <header className="l-hero">
         <div className="l-sky" aria-hidden="true">
           <div className="l-sun" />

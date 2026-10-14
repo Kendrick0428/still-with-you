@@ -13,6 +13,8 @@ declare global {
       signUp: (email: string, password: string) => Promise<{ error?: string; needsConfirm?: boolean }>;
       signIn: (email: string, password: string) => Promise<{ error?: string }>;
       resetPassword: (email: string) => Promise<{ error?: string }>;
+      updatePassword: (password: string) => Promise<{ error?: string }>;
+      authLink: () => "recovery" | "expired" | null;
       signOut: () => Promise<void>;
       pull: () => Promise<Snapshot | null>;
       push: (data: Snapshot) => Promise<void>;
@@ -48,6 +50,10 @@ export default function AccountBridge() {
     let sb: SupabaseClient | null = null;
     let email: string | null = null;
     let userId: string | null = null;
+    // Read what an email link brought us here for before Supabase consumes the address.
+    const hash = new URLSearchParams(location.hash.slice(1));
+    let link: "recovery" | "expired" | null = hash.get("type") === "recovery" ? "recovery" : hash.get("error_code") ? "expired" : null;
+    if (link === "expired") history.replaceState(null, "", location.pathname + location.search);
     if (url && key) sb = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } });
 
     // Calls the billing routes with the signed-in person's token so the server knows who is asking.
@@ -70,7 +76,8 @@ export default function AccountBridge() {
         const { data } = await sb.auth.getSession();
         email = data.session?.user.email ?? null;
         userId = data.session?.user.id ?? null;
-        sb.auth.onAuthStateChange((_e, session) => {
+        sb.auth.onAuthStateChange((event, session) => {
+          if (event === "PASSWORD_RECOVERY" && link !== "recovery") { link = "recovery"; window.dispatchEvent(new Event("swy-auth-link")); }
           email = session?.user.email ?? null;
           userId = session?.user.id ?? null;
         });
@@ -94,6 +101,13 @@ export default function AccountBridge() {
           const { error } = await sb.auth.resetPasswordForEmail(e, { redirectTo: `${location.origin}/app` });
           return error ? { error: friendly(error.message) } : {};
         },
+        async updatePassword(p) {
+          if (!sb) return { error: "Accounts aren’t available yet." };
+          const { error } = await sb.auth.updateUser({ password: p });
+          if (!error) link = null;
+          return error ? { error: friendly(error.message) } : {};
+        },
+        authLink: () => { const l = link; if (l === "expired") link = null; return l; },
         async signOut() { if (sb) await sb.auth.signOut(); },
         async pull() {
           if (!sb || !userId) return null;
