@@ -80,7 +80,7 @@ export default function Landing() {
           Still With You is a companion for reflection and faith. It does not replace counseling, pastoral care, medical care, or crisis services.
         </p>
         <p className="l-footlinks">
-          <a href="/privacy">Privacy</a> <span aria-hidden="true">&middot;</span> &copy; {new Date().getFullYear()} Still With You
+          <a href="/privacy">Privacy</a> <span aria-hidden="true">&middot;</span> <a href="/terms">Terms</a> <span aria-hidden="true">&middot;</span> &copy; {new Date().getFullYear()} Still With You
         </p>
       </footer>
     </main>

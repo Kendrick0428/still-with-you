@@ -578,7 +578,8 @@ function settingsScreen() {
     <div class="card"><strong>Important date reminders</strong>
       <label class="task"><input type="checkbox" id="dr" ${settings.dateReminders ? 'checked' : ''}><span>Gently let me know before birthdays and anniversaries</span></label>
       <p class="muted small">Off unless you turn it on.</p>
-    </div>`);
+    </div>
+    <p class="muted small"><a href="/privacy" target="_blank">Privacy Policy</a> · <a href="/terms" target="_blank">Terms of Service</a></p>`);
   const pman = $('#pman'), pchk = $('#pchk');
   if (pman) pman.onclick = async function () { this.disabled = true; const r = await acct().managePlan(); if (r.error) { this.disabled = false; const m = $('#pmsg'); m.hidden = false; m.textContent = r.error; } };
   if (pchk) pchk.onclick = async function () { this.textContent = 'Checking…'; await refreshPlan(); settingsScreen(); };
@@ -1020,7 +1021,7 @@ function plansScreen(feature = '') {
     ${!signedIn() ? `<button class="btn link small" onclick="accountScreen('signin')">I already have an account</button>` : ''}
     <div class="free-forever"><span class="eyebrow">Always free</span>
       <p class="muted small" style="margin-top:6px">Hard-day mode, the daily prayer, journaling, and crisis help are free for everyone, forever. No one should have to pay for comfort on their hardest day.</p></div>
-    <p class="muted small">Payments are handled securely by Stripe. Still With You never sees your card number.</p>`);
+    <p class="muted small">Payments are handled securely by Stripe. Still With You never sees your card number. Plus renews automatically until you cancel. See our <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</p>`);
   const pick = (k) => { chosenPlan = k; document.querySelectorAll('.plan').forEach(b => { const on = b.dataset.plan === k; b.setAttribute('aria-pressed', on); b.setAttribute('aria-checked', on); }); };
   document.querySelectorAll('.plan').forEach(b => b.onclick = () => pick(b.dataset.plan));
   pick(chosenPlan);
@@ -1064,6 +1065,7 @@ function accountScreen(mode = 'signup') {
       <div class="field"><label for="ap">Password</label><input id="ap" type="password" autocomplete="${up ? 'new-password' : 'current-password'}" minlength="8" required>${up ? '<p class="muted small" style="margin-top:6px">At least 8 characters.</p>' : ''}</div>
       <p id="amsg" class="muted" role="status" hidden></p>
       <button class="btn" id="ago">${up ? 'Create account' : 'Sign in'}</button>
+      ${up ? '<p class="muted small" style="margin-top:10px">By creating an account you agree to our <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</p>' : ''}
     </form>
     ${up ? `<button class="btn link" onclick="accountScreen('signin')">I already have an account</button>`
          : `<button class="btn link" onclick="accountScreen('signup')">Create a new account</button><button class="btn link small" id="forgot">Forgot your password?</button>`}`);
