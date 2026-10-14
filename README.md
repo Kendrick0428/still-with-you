@@ -83,3 +83,9 @@ A private page showing monthly recurring revenue, money collected by month, Plus
 - `ADMIN_EMAILS`: comma-separated emails allowed in (required; with it unset nobody can open the page). The account must exist in the app and its email must be confirmed.
 - `SUPABASE_SERVICE_ROLE_KEY` (optional): also shows how many accounts have signed up. Keep this key server-only; never prefix it with `NEXT_PUBLIC_`.
 - Route: `/api/admin/stats`. Helpers are in `lib/admin.ts`.
+
+### Accounting tab
+
+The **Accounting** tab on `/admin` adds up a year on a cash basis: Plus sales, refunds and Stripe fees (from Stripe), plus business expenses you log there (one-time or monthly, such as Vercel, Supabase, Anthropic or the domain). It shows net profit month by month, an estimated amount to set aside for taxes (a percentage you choose, 25% by default) split by the IRS estimated-payment dates, and exports everything as a CSV for a CPA or a printable PDF. The tax figure is an estimate for saving, not tax advice.
+
+Expenses and the set-aside rate live in the `admin_expenses` and `admin_settings` tables in `supabase/schema.sql`, visible only to the owner's own account.

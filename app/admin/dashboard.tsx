@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import Accounting from "./accounting";
 
 type Money = {
   testMode: boolean; truncated: boolean; mrr: number; trialMrr: number;
@@ -34,6 +35,8 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+  const [tab, setTab] = useState<"overview" | "accounting">("overview");
+  const token = useCallback(async () => (sb ? (await sb.auth.getSession()).data.session?.access_token ?? null : null), [sb]);
 
   const load = useCallback(async () => {
     if (!sb) { setPhase("signin"); return; }
@@ -103,17 +106,23 @@ export default function AdminDashboard() {
 
   return (
     <main className="adm">
-      <header className="adm-top">
+      <header className="adm-top no-print">
         <div>
           <p className="adm-eyebrow">Still With You · Owner</p>
-          <h1>Money and subscribers</h1>
+          <h1>{tab === "overview" ? "Money and subscribers" : "Accounting"}</h1>
         </div>
         <div className="adm-actions">
           {m?.testMode && <span className="adm-badge">Test mode</span>}
-          <button className="adm-btn ghost" onClick={load} disabled={busy}>{busy ? "Refreshing…" : "Refresh"}</button>
+          {tab === "overview" && <button className="adm-btn ghost" onClick={load} disabled={busy}>{busy ? "Refreshing…" : "Refresh"}</button>}
           <button className="adm-btn ghost" onClick={signOut}>Sign out</button>
         </div>
       </header>
+      <nav className="adm-tabs no-print" role="tablist">
+        <button role="tab" aria-selected={tab === "overview"} onClick={() => setTab("overview")}>Overview</button>
+        <button role="tab" aria-selected={tab === "accounting"} onClick={() => setTab("accounting")}>Accounting</button>
+      </nav>
+
+      {tab === "accounting" ? <Accounting token={token} /> : <>
 
       {!money && <p className="adm-card adm-muted">Stripe isn’t connected yet. Add STRIPE_SECRET_KEY in Vercel to see money and subscribers.</p>}
       {hasError(money) && <p className="adm-card adm-note">{money.error} Try Refresh in a moment.</p>}
@@ -184,7 +193,8 @@ export default function AdminDashboard() {
 
       {hasError(signups) && <p className="adm-muted">Accounts: {signups.error}</p>}
       {!signups && <p className="adm-muted">To see account sign-ups here too, add SUPABASE_SERVICE_ROLE_KEY in Vercel.</p>}
-      <p className="adm-foot adm-muted">
+      </>}
+      <p className="adm-foot adm-muted no-print">
         Signed in as {stats?.email}{stats?.at && <> · Updated {new Date(stats.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</>}
         {m && <> · <a href={dash} target="_blank" rel="noreferrer">Open Stripe</a></>}
       </p>
