@@ -11,6 +11,9 @@ const FEATURES = [
   ["Practical and private", "Help with paperwork at your own pace, quiet hours, an app lock, and nothing shared unless you choose."],
 ];
 
+const FREE = ["“I’m having a hard day” mode", "Daily prayer and Scripture", "Heart check-ins", "Your private journal", "Crisis help, always"];
+const PLUS = ["A grief companion to talk with, day or night", "Your Memory Vault for photos, stories, and songs", "Audio prayers and Scripture", "Backup across your devices"];
+
 export default function Landing() {
   return (
     <main className="landing">
@@ -25,7 +28,10 @@ export default function Landing() {
         </div>
         <nav className="l-nav">
           <span className="l-brand">Still <em>With</em> You</span>
-          <a className="l-navlink" href="/app">Open the app</a>
+          <span className="l-navlinks">
+            <a className="l-navtext" href="#pricing">Pricing</a>
+            <a className="l-navlink" href="/app">Open the app</a>
+          </span>
         </nav>
         <div className="l-hero-in">
           <p className="l-eyebrow">A Christian companion for grief</p>
@@ -69,10 +75,34 @@ export default function Landing() {
         </ul>
       </section>
 
+      <section className="l-section" id="pricing">
+        <p className="l-eyebrow dark">Pricing</p>
+        <h2>Free to begin. Plus when you want more.</h2>
+        <p className="l-muted">The help you need on your hardest day is always free.</p>
+        <div className="l-plans">
+          <article className="l-plan">
+            <h3>Free</h3>
+            <p className="l-price">$0 <span>forever</span></p>
+            <ul className="l-checks">{FREE.map((f) => <li key={f}>{f}</li>)}</ul>
+            <a className="l-btn quiet" href="/app">Start for free</a>
+          </article>
+          <article className="l-plan plus">
+            <span className="l-tag">7 days free</span>
+            <h3>Still With You <em>Plus</em></h3>
+            <p className="l-price">$6.99 <span>a month</span></p>
+            <p className="l-alt">or <strong>$49 a year</strong>, about $4.08 a month</p>
+            <p className="l-small">Everything in Free, and:</p>
+            <ul className="l-checks">{PLUS.map((f) => <li key={f}>{f}</li>)}</ul>
+            <a className="l-btn" href="/app">Try Plus free for 7 days</a>
+            <p className="l-small">You won&rsquo;t be charged until your trial ends. Cancel any time.</p>
+          </article>
+        </div>
+      </section>
+
       <section className="l-section narrow" id="waitlist">
         <p className="l-eyebrow dark">Early access</p>
         <h2>Be the first to try the full app</h2>
-        <p className="l-muted">Audio prayers, the grief companion, and the Memory Vault are on the way. Leave your email and we&rsquo;ll let you know when they&rsquo;re ready.</p>
+        <p className="l-muted">New features are on the way. Leave your email and we&rsquo;ll let you know when they&rsquo;re ready.</p>
         <WaitlistForm />
       </section>
 
