@@ -168,7 +168,8 @@ function welcome() {
         <button class="btn" onclick="stepName()">Begin</button>
         <button class="btn ghost" onclick="useSample()">Look around with an example first</button>
         ${profile.name && profile.people.length ? `<button class="btn link" onclick="home()">Continue as ${esc(profile.name)}</button>` : ''}
-        ${acct() && !signedIn() ? `<button class="btn link" onclick="accountScreen('signin')">I already have an account</button>` : ''}
+        ${acct() && !signedIn() ? `<button class="btn link" onclick="accountScreen('signin')">I already have an account · Sign in</button>` : ''}
+        ${signedIn() ? `<button class="btn link small" onclick="settingsScreen()">Signed in as ${esc(acct().email())}</button>` : ''}
       </div>
     </div>`, false, { rising: true });
 }
@@ -553,12 +554,12 @@ function prayerRequest() {
 }
 
 function settingsScreen() {
-  render(`<button class="back" onclick="home()">Home</button>
+  render(`<button class="back" onclick="${profile.people.length ? 'home()' : 'welcome()'}">Back</button>
     <span class="eyebrow">Privacy and settings</span>
     <h2>Your space, your rules</h2>
     ${acct() ? (signedIn() ? `<div class="card"><strong>Your account</strong>
       <p class="muted small">Signed in as ${esc(acct().email())}. Your entries are saved to your account and only you can see them.</p>
-      <div class="row"><button class="tiny-btn" id="so">Sign out</button><button class="tiny-btn" id="del">Delete my saved data</button></div><p id="delmsg" class="muted small" hidden></p></div>`
+      <div class="row"><button class="tiny-btn" onclick="newPasswordScreen()">Change my password</button><button class="tiny-btn" id="so">Sign out</button><button class="tiny-btn" id="del">Delete my saved data</button></div><p id="delmsg" class="muted small" hidden></p></div>`
       : `<div class="card"><strong>Your account</strong><p class="muted small">Right now your entries are saved only on this device. A free account keeps them safe if you lose your phone.</p>
       <div class="row"><button class="tiny-btn" onclick="accountScreen('signup')">Create account</button><button class="tiny-btn" onclick="accountScreen('signin')">Sign in</button></div></div>`) : ''}
     ${planCard()}
@@ -578,7 +579,8 @@ function settingsScreen() {
     <div class="card"><strong>Important date reminders</strong>
       <label class="task"><input type="checkbox" id="dr" ${settings.dateReminders ? 'checked' : ''}><span>Gently let me know before birthdays and anniversaries</span></label>
       <p class="muted small">Off unless you turn it on.</p>
-    </div>`);
+    </div>
+    <p class="muted small"><a href="/privacy" target="_blank">Privacy Policy</a> · <a href="/terms" target="_blank">Terms of Service</a></p>`);
   const pman = $('#pman'), pchk = $('#pchk');
   if (pman) pman.onclick = async function () { this.disabled = true; const r = await acct().managePlan(); if (r.error) { this.disabled = false; const m = $('#pmsg'); m.hidden = false; m.textContent = r.error; } };
   if (pchk) pchk.onclick = async function () { this.textContent = 'Checking…'; await refreshPlan(); settingsScreen(); };
@@ -1020,7 +1022,7 @@ function plansScreen(feature = '') {
     ${!signedIn() ? `<button class="btn link small" onclick="accountScreen('signin')">I already have an account</button>` : ''}
     <div class="free-forever"><span class="eyebrow">Always free</span>
       <p class="muted small" style="margin-top:6px">Hard-day mode, the daily prayer, journaling, and crisis help are free for everyone, forever. No one should have to pay for comfort on their hardest day.</p></div>
-    <p class="muted small">Payments are handled securely by Stripe. Still With You never sees your card number.</p>`);
+    <p class="muted small">Payments are handled securely by Stripe. Still With You never sees your card number. Plus renews automatically until you cancel. See our <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</p>`);
   const pick = (k) => { chosenPlan = k; document.querySelectorAll('.plan').forEach(b => { const on = b.dataset.plan === k; b.setAttribute('aria-pressed', on); b.setAttribute('aria-checked', on); }); };
   document.querySelectorAll('.plan').forEach(b => b.onclick = () => pick(b.dataset.plan));
   pick(chosenPlan);
@@ -1064,6 +1066,7 @@ function accountScreen(mode = 'signup') {
       <div class="field"><label for="ap">Password</label><input id="ap" type="password" autocomplete="${up ? 'new-password' : 'current-password'}" minlength="8" required>${up ? '<p class="muted small" style="margin-top:6px">At least 8 characters.</p>' : ''}</div>
       <p id="amsg" class="muted" role="status" hidden></p>
       <button class="btn" id="ago">${up ? 'Create account' : 'Sign in'}</button>
+      ${up ? '<p class="muted small" style="margin-top:10px">By creating an account you agree to our <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</p>' : ''}
     </form>
     ${up ? `<button class="btn link" onclick="accountScreen('signin')">I already have an account</button>`
          : `<button class="btn link" onclick="accountScreen('signup')">Create a new account</button><button class="btn link small" id="forgot">Forgot your password?</button>`}`);
@@ -1093,11 +1096,51 @@ function accountScreen(mode = 'signup') {
   };
 }
 
+/* Email links: a password reset opens a screen to choose a new one; a used or old link explains what to do. */
+function handleAuthLink() {
+  const l = acct() && acct().authLink ? acct().authLink() : null;
+  if (l === 'recovery') { newPasswordScreen(); return true; }
+  if (l === 'expired') {
+    accountScreen('signin');
+    const m = $('#amsg'); m.hidden = false;
+    m.textContent = 'That email link has already been used or is too old. Enter your email and tap “Forgot your password?” for a fresh one, and open only the newest email.';
+    return true;
+  }
+  return false;
+}
+window.addEventListener('swy-auth-link', handleAuthLink);
+
+function newPasswordScreen() {
+  render(`<button class="back" onclick="${profile.people.length ? 'home()' : 'welcome()'}">Back</button>
+    <span class="eyebrow">Your password</span>
+    <h2>Choose a new password</h2>
+    <form id="nf" class="sec" novalidate>
+      <div class="field"><label for="np">New password</label><input id="np" type="password" autocomplete="new-password" minlength="8" required autofocus><p class="muted small" style="margin-top:6px">At least 8 characters.</p></div>
+      <p id="nmsg" class="muted" role="status" hidden></p>
+      <button class="btn" id="ngo">Save my new password</button>
+    </form>`);
+  $('#nf').onsubmit = async (e) => {
+    e.preventDefault();
+    const m = $('#nmsg'), p = $('#np').value;
+    if (p.length < 8) { m.hidden = false; m.textContent = 'Please use at least 8 characters.'; return; }
+    const go = $('#ngo'); go.disabled = true; go.textContent = 'Saving…';
+    const r = await acct().updatePassword(p);
+    if (r.error) { go.disabled = false; go.textContent = 'Save my new password'; m.hidden = false; m.textContent = r.error; return; }
+    await syncAfterSignIn();
+    await refreshPlan();
+    render(`<span class="eyebrow">All set</span><h2>Your new password is saved</h2>
+      <p class="muted">You’re signed in. Use your new password next time.</p>
+      <button class="btn" id="ndone">Continue</button>`);
+    $('#ndone').onclick = () => (profile.people.length ? home() : welcome());
+  };
+}
+
 /* Wait briefly for the account bridge so a signed-in person sees their saved entries on a new device. */
 let booted = false;
 async function boot() {
   if (booted) return; booted = true;
   if (signedIn()) { try { await syncAfterSignIn(); } catch (e) {} }
+  if (handleAuthLink()) return;
   const ret = new URLSearchParams(location.search).get('plan');
   if (ret) history.replaceState(null, '', location.pathname);
   const has = profile.people.length > 0;

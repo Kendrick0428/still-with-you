@@ -1,5 +1,6 @@
 import "./landing.css";
 import WaitlistForm from "./waitlist-form";
+import AuthForward from "./auth-forward";
 
 const FEATURES = [
   ["I’m having a hard day", "One tap turns the app into a quiet night space: a prayer, a verse, a breath, or someone to call."],
@@ -13,6 +14,7 @@ const FEATURES = [
 export default function Landing() {
   return (
     <main className="landing">
+      <AuthForward />
       <header className="l-hero">
         <div className="l-sky" aria-hidden="true">
           <div className="l-sun" />
@@ -80,7 +82,7 @@ export default function Landing() {
           Still With You is a companion for reflection and faith. It does not replace counseling, pastoral care, medical care, or crisis services.
         </p>
         <p className="l-footlinks">
-          <a href="/privacy">Privacy</a> <span aria-hidden="true">&middot;</span> &copy; {new Date().getFullYear()} Still With You
+          <a href="/privacy">Privacy</a> <span aria-hidden="true">&middot;</span> <a href="/terms">Terms</a> <span aria-hidden="true">&middot;</span> &copy; {new Date().getFullYear()} Still With You
         </p>
       </footer>
     </main>
