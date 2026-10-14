@@ -58,3 +58,11 @@ Still With You Plus is $6.99 a month or $49 a year, with a 7-day free trial for 
 - Routes: `/api/billing/checkout`, `/api/billing/status`, `/api/billing/portal`. Helpers are in `lib/billing.ts`.
 
 To try checkout in test mode, use Stripe's test card `4242 4242 4242 4242` with any future date, any CVC and any ZIP.
+
+## Owner dashboard (`/admin`)
+
+A private page showing monthly recurring revenue, money collected by month, Plus subscribers (paying, in trial, cancelling, failed payments), recent payments and newest subscribers, read live from Stripe. Only Still With You Plus subscriptions are counted, even if the Stripe account sells other things.
+
+- `ADMIN_EMAILS`: comma-separated emails allowed in (required; with it unset nobody can open the page). The account must exist in the app and its email must be confirmed.
+- `SUPABASE_SERVICE_ROLE_KEY` (optional): also shows how many accounts have signed up. Keep this key server-only; never prefix it with `NEXT_PUBLIC_`.
+- Route: `/api/admin/stats`. Helpers are in `lib/admin.ts`.
