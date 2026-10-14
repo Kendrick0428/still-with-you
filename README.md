@@ -75,3 +75,11 @@ A private conversation with Claude, written to listen first, avoid grief cliché
 - Optional: `COMPANION_MODEL` to use a different Claude model (default `claude-opus-5-5`).
 - When accounts and plans are on, only signed-in Plus members can use it, checked on the server. With Upstash connected, each person is limited to 150 messages a day.
 - Conversations are kept only on the person's device. Hard-day mode's "Let me talk" opens the companion for Plus members and a free private writing space for everyone else.
+
+## Owner dashboard (`/admin`)
+
+A private page showing monthly recurring revenue, money collected by month, Plus subscribers (paying, in trial, cancelling, failed payments), recent payments and newest subscribers, read live from Stripe. Only Still With You Plus subscriptions are counted, even if the Stripe account sells other things.
+
+- `ADMIN_EMAILS`: comma-separated emails allowed in (required; with it unset nobody can open the page). The account must exist in the app and its email must be confirmed.
+- `SUPABASE_SERVICE_ROLE_KEY` (optional): also shows how many accounts have signed up. Keep this key server-only; never prefix it with `NEXT_PUBLIC_`.
+- Route: `/api/admin/stats`. Helpers are in `lib/admin.ts`.
