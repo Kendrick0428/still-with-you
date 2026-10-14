@@ -168,7 +168,8 @@ function welcome() {
         <button class="btn" onclick="stepName()">Begin</button>
         <button class="btn ghost" onclick="useSample()">Look around with an example first</button>
         ${profile.name && profile.people.length ? `<button class="btn link" onclick="home()">Continue as ${esc(profile.name)}</button>` : ''}
-        ${acct() && !signedIn() ? `<button class="btn link" onclick="accountScreen('signin')">I already have an account</button>` : ''}
+        ${acct() && !signedIn() ? `<button class="btn link" onclick="accountScreen('signin')">I already have an account · Sign in</button>` : ''}
+        ${signedIn() ? `<button class="btn link small" onclick="settingsScreen()">Signed in as ${esc(acct().email())}</button>` : ''}
       </div>
     </div>`, false, { rising: true });
 }
@@ -553,12 +554,12 @@ function prayerRequest() {
 }
 
 function settingsScreen() {
-  render(`<button class="back" onclick="home()">Home</button>
+  render(`<button class="back" onclick="${profile.people.length ? 'home()' : 'welcome()'}">Back</button>
     <span class="eyebrow">Privacy and settings</span>
     <h2>Your space, your rules</h2>
     ${acct() ? (signedIn() ? `<div class="card"><strong>Your account</strong>
       <p class="muted small">Signed in as ${esc(acct().email())}. Your entries are saved to your account and only you can see them.</p>
-      <div class="row"><button class="tiny-btn" id="so">Sign out</button><button class="tiny-btn" id="del">Delete my saved data</button></div><p id="delmsg" class="muted small" hidden></p></div>`
+      <div class="row"><button class="tiny-btn" onclick="newPasswordScreen()">Change my password</button><button class="tiny-btn" id="so">Sign out</button><button class="tiny-btn" id="del">Delete my saved data</button></div><p id="delmsg" class="muted small" hidden></p></div>`
       : `<div class="card"><strong>Your account</strong><p class="muted small">Right now your entries are saved only on this device. A free account keeps them safe if you lose your phone.</p>
       <div class="row"><button class="tiny-btn" onclick="accountScreen('signup')">Create account</button><button class="tiny-btn" onclick="accountScreen('signin')">Sign in</button></div></div>`) : ''}
     ${planCard()}
@@ -1110,7 +1111,8 @@ function handleAuthLink() {
 window.addEventListener('swy-auth-link', handleAuthLink);
 
 function newPasswordScreen() {
-  render(`<span class="eyebrow">Reset your password</span>
+  render(`<button class="back" onclick="${profile.people.length ? 'home()' : 'welcome()'}">Back</button>
+    <span class="eyebrow">Your password</span>
     <h2>Choose a new password</h2>
     <form id="nf" class="sec" novalidate>
       <div class="field"><label for="np">New password</label><input id="np" type="password" autocomplete="new-password" minlength="8" required autofocus><p class="muted small" style="margin-top:6px">At least 8 characters.</p></div>
