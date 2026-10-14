@@ -43,7 +43,7 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { height: 100%; }
+html, body, .app-root { height: 100%; }
 body { background: var(--frame); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; margin: 0; padding-inline: 16px; padding-block: 32px; -webkit-font-smoothing: antialiased; }
 h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; font-variation-settings: "SOFT" 100, "opsz" 72; letter-spacing: -.01em; }
 h1 { font-size: 2.6rem; line-height: 1.04; }
@@ -254,3 +254,63 @@ button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-c
 .plan .price { font-family: var(--display); font-size: 1.35rem; font-variation-settings: "SOFT" 100; }
 .plan .tag { position: absolute; top: -10px; right: 18px; background: var(--gold); color: var(--surface); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
 .free-forever { border-top: 1px solid var(--hair); padding-top: 16px; }
+
+/* ---------- Memory Vault ---------- */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.vault-grid { columns: 2; column-gap: 10px; }
+.mem { break-inside: avoid; width: 100%; margin: 0 0 10px; display: flex; flex-direction: column; gap: 6px; text-align: left; background: var(--surface); border: 1px solid var(--hair); border-radius: 20px; padding: 14px; box-shadow: var(--lift); transition: transform .15s ease; }
+.mem:active { transform: scale(.98); }
+.mem strong { font-family: var(--display); font-weight: 400; font-size: 1.12rem; line-height: 1.25; font-variation-settings: "SOFT" 100; }
+.mem .eyebrow { font-size: .62rem; }
+.mem-text { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; font-size: .95rem; color: var(--ink-2); white-space: pre-line; }
+.mem.saying .mem-text, .mem.scripture .mem-text { font-family: var(--display); font-style: italic; font-size: 1.08rem; color: var(--ink); }
+.mem.letter { background: linear-gradient(180deg, var(--gold-wash), var(--surface) 70%); }
+.mem.has-media, .mem:has(.mem-media) { padding-top: 6px; }
+.mem-media { display: block; position: relative; margin: 0 -8px; border-radius: 15px; overflow: hidden; background: var(--blue-soft); min-height: 80px; }
+.mem-media img, .mem-media video { display: block; width: 100%; height: auto; }
+.mem-media audio { display: block; width: 100%; }
+.mem-media.missing { display: grid; place-items: center; padding: 18px; text-align: center; }
+.mem-media.full { margin: 0; border-radius: 22px; box-shadow: var(--lift); }
+.mem-media:has(audio) { background: none; min-height: 0; margin: 0; }
+.play-badge { position: absolute; inset: 0; display: grid; place-items: center; }
+.play-badge svg { width: 40px; height: 40px; padding: 8px; border-radius: 50%; background: rgba(0,0,0,.4); color: #fff; }
+.mem .muted.small svg { width: 16px; height: 16px; vertical-align: -3px; }
+.mem-body p { font-size: 1.1rem; line-height: 1.6; white-space: pre-line; }
+.letter p { font-family: var(--display); font-size: 1.2rem; line-height: 1.6; white-space: pre-line; font-variation-settings: "SOFT" 100; }
+.letter { background: linear-gradient(180deg, var(--gold-wash), var(--surface) 55%); }
+.saved-note { color: var(--gold); font-weight: 600; font-size: .92rem; }
+.kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kinds button { display: flex; flex-direction: column; gap: 4px; text-align: left; background: var(--surface); border: 1px solid var(--hair); border-radius: 20px; padding: 16px; transition: transform .15s ease; }
+.kinds button:active { transform: scale(.97); }
+.kinds strong { font-weight: 600; font-size: .98rem; line-height: 1.25; }
+.drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 150px; padding: 14px; border: 1.5px dashed color-mix(in srgb, var(--gold) 55%, transparent); border-radius: 22px; background: var(--gold-wash); cursor: pointer; text-align: center; font-weight: 600; }
+.drop .mem-media { width: 100%; margin: 0 0 6px; }
+.rec { gap: 14px; }
+.rec label.tiny-btn { cursor: pointer; }
+.motd { text-align: left; color: var(--ink); font: inherit; }
+.motd .mem-media { margin: 4px 0; }
+.motd-title { font-family: var(--display); font-weight: 400; font-size: 1.3rem; font-variation-settings: "SOFT" 100; }
+.motd-prompt { font-family: var(--display); font-size: 1.32rem; line-height: 1.35; font-weight: 350; font-variation-settings: "SOFT" 100; }
+.empty-vault { gap: 14px; }
+
+/* ---------- Grief companion ---------- */
+.chat-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.chat { display: flex; flex-direction: column; gap: 12px; margin-top: -10px; }
+.chat:empty { display: none; }
+.bubble { max-width: 88%; padding: 13px 16px; border-radius: 22px; line-height: 1.5; display: flex; flex-direction: column; gap: 10px; }
+.bubble.them { align-self: flex-start; background: var(--surface); border: 1px solid var(--hair); border-bottom-left-radius: 8px; box-shadow: var(--lift); font-size: 1.04rem; }
+.bubble.me { align-self: flex-end; background: var(--blue); color: var(--blue-ink); border-bottom-right-radius: 8px; }
+.night .bubble.them { background: rgba(255,255,255,.05); box-shadow: none; }
+.chat-note { text-align: center; }
+.care { border-color: color-mix(in srgb, var(--gold) 50%, transparent); background: var(--gold-wash); }
+.care a.tiny-btn { text-decoration: none; }
+.typing { display: inline-flex; gap: 5px; padding: 6px 2px; }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-2); opacity: .4; animation: blink 1.2s infinite ease-in-out; }
+.typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: .9; } }
+.starters .chip { font-size: .92rem; text-align: left; }
+.chat-screen { padding-bottom: 28px; }
+.composer { display: flex; gap: 10px; align-items: flex-end; position: sticky; bottom: 0; z-index: 2; background: var(--page); padding: 10px 0 12px; margin-bottom: -12px; }
+.composer .ta { flex: 1; min-width: 0; resize: none; font-size: 1.02rem; padding: 12px 14px; }
+.composer .play { padding: 12px 18px; }
+@media (prefers-reduced-motion: reduce) { .typing i { animation: none; } }

@@ -50,11 +50,10 @@ async function refreshPlan() {
   plan = signedIn() ? p : { available: p.available, plan: 'free' };
   try { localStorage.setItem('swy-plan', JSON.stringify(plan)); } catch (e) {}
 }
-const plusOnly = (open, feature) => (!plansOn() || isPlus()) ? open() : plansScreen(feature);
-function companion() { plusOnly(() => later('Talk About My Grief', 'A gentle conversation space where you can say what\u2019s on your heart, like \u201cToday would have been our anniversary,\u201d and receive a caring response.'), 'companion'); }
-function vault() { _tab = 'remember'; plusOnly(() => later('Remember ' + L(), 'Your private Memory Vault for photos, stories, recipes, songs, favorite sayings, and letters to ' + L() + '.'), 'vault'); }
+const plusOpen = () => !plansOn() || isPlus();
+const plusOnly = (open, feature) => plusOpen() ? open() : plansScreen(feature);
 
-const snapshot = () => ({ v: 1, profile, settings: { ...settings, pin: '' }, tasks: loadJSON('swy-tasks', {}) });
+const snapshot = () => ({ v: 1, profile, settings: { ...settings, pin: '' }, tasks: loadJSON('swy-tasks', {}), vault: loadJSON('swy-vault', []) });
 let pushTimer = null;
 function queueSync() {
   if (!signedIn()) return;
@@ -65,12 +64,19 @@ function adopt(remote) {
   if (remote.profile) { profile = remote.profile; try { localStorage.setItem('swy-profile', JSON.stringify(profile)); } catch (e) {} }
   if (remote.settings) { settings = { ...settings, ...remote.settings, pin: settings.pin }; try { localStorage.setItem('swy-settings', JSON.stringify(settings)); } catch (e) {} }
   if (remote.tasks) { try { localStorage.setItem('swy-tasks', JSON.stringify(remote.tasks)); } catch (e) {} }
+  if (remote.vault) { try { localStorage.setItem('swy-vault', JSON.stringify(remote.vault)); } catch (e) {} }
 }
 /* After signing in: the account's saved copy wins if it has anyone in it; otherwise this device's entries move into the account. */
 async function syncAfterSignIn() {
   const remote = await acct().pull();
-  if (remote && remote.profile && remote.profile.people && remote.profile.people.length) adopt(remote);
-  else if (profile.people.length) await acct().push(snapshot());
+  if (remote && remote.profile && remote.profile.people && remote.profile.people.length) {
+    // Memories saved on this device before signing in join the account's copy rather than being lost.
+    const local = loadJSON('swy-vault', []), ids = new Set((remote.vault || []).map(m => m.id));
+    const extra = local.filter(m => !ids.has(m.id));
+    adopt(remote);
+    if (extra.length) saveJSON('swy-vault', [...extra, ...loadJSON('swy-vault', [])]);
+  } else if (profile.people.length) await acct().push(snapshot());
+  backupMedia();
 }
 
 const MARK = `<svg class="mark" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="27" fill="none" stroke="var(--gold)" stroke-width="1.2"/><path d="M28 40c-7-5-12-9.5-12-15a6 6 0 0 1 12-1.5A6 6 0 0 1 40 25c0 5.5-5 10-12 15z" fill="none" stroke="var(--blue)" stroke-width="1.6" stroke-linejoin="round"/><path d="M28 12v6M25 15h6" stroke="var(--gold)" stroke-width="1.4" stroke-linecap="round"/></svg>`;
@@ -142,11 +148,13 @@ function render(html, calm = false, opt = {}) {
   device.classList.toggle('sky-mode', sky);
   device.classList.toggle('plain', !sky && !calm && !opt.hero);
   device.classList.toggle('rising', !!opt.rising);
-  tabs.hidden = sky || calm === true;
+  tabs.hidden = sky || calm === true || !!opt.noTabs;
   tabs.innerHTML = TABS.map(([k, label, fn]) => `<button onclick="${fn.replace(/"/g, '&quot;')}" ${tab === k ? 'aria-current="page"' : ''}>${icon(k === 'today' ? 'sun' : k)}${label}</button>`).join('');
   app.innerHTML = `${calm === true ? '<div class="stars"></div>' : ''}<section class="screen ${opt.cls || ''}">${html}</section>`;
   app.scrollTop = 0;
   const f = app.querySelector('[autofocus]'); if (f) f.focus({ preventScroll: true });
+  if (typeof stopRec === 'function') stopRec();
+  hydrateMedia();
 }
 
 /* ---------- Welcome & onboarding ---------- */
@@ -311,6 +319,8 @@ function home() {
 
       ${causeCards()}
 
+      ${memoryOfTheDay()}
+
       <p class="encourage">${pick(ENCOURAGE, 2)}</p>
 
       <section class="sec">
@@ -375,8 +385,8 @@ function hardDay() {
       <button onclick="prayer(true)">Pray with me</button>
       <button onclick="scripture(true)">Give me a Scripture</button>
       <button onclick="breathe(true)">Help me breathe</button>
-      <button onclick="later('Let me talk', 'You’ll be able to write whatever you feel, and receive a calm, caring response.', true)">Let me talk</button>
-      <button onclick="later('Remember ' + L(), 'A single memory of ' + L() + ' from your Memory Vault, shown gently.', true)">Help me remember ${esc(L())}</button>
+      <button onclick="plusOpen() ? companion(true) : letMeWrite()">Let me talk</button>
+      <button onclick="rememberOne()">Help me remember ${esc(L())}</button>
       <button onclick="support(true)">Call someone I trust</button>
       <button onclick="support(true)">Contact my pastor or counselor</button>
       <button onclick="crisis(true)">Find additional support</button>
@@ -473,11 +483,16 @@ function wave() {
     <div class="field"><label for="wv">What brought it on? <span class="muted small" style="font-weight:600">(optional)</span></label>
     <textarea id="wv" rows="3" class="ta" placeholder="Their song came on in the store…"></textarea></div>
     <button class="btn" id="sv">Save this as a memory</button>
-    <p id="ok" class="muted small" hidden style="text-align:center">Saved to your Memory Vault (sample only).</p>
+    <p id="ok" class="muted small" hidden style="text-align:center">Saved to your Memory Vault.</p>
     <button class="btn link" onclick="hardDay()">I need more support right now</button>`);
   let t = 0; const el = $('#bt');
   const tick = setInterval(() => { if (!document.body.contains(el)) return clearInterval(tick); t = (t + 1) % 10; el.textContent = t < 4 ? 'Breathe in' : t < 5 ? 'Hold' : 'Breathe out'; }, 1000);
-  $('#sv').onclick = () => { $('#ok').hidden = false; };
+  $('#sv').onclick = () => {
+    const t = $('#wv').value.trim();
+    if (!t) return $('#wv').focus();
+    addMemory({ kind: 'moment', who: profile.people[profile.focus] ? L() : '', title: 'A wave of grief', text: t });
+    $('#sv').disabled = true; $('#ok').hidden = false;
+  };
 }
 
 function practical() {
@@ -593,6 +608,389 @@ function lockScreen() {
     <button class="btn link small" id="forgot">Forgot your code? (In this sample, this turns the lock off.)</button></div>`);
   $('#unlock').oninput = (e) => { if (e.target.value.length === 4) { if (e.target.value === settings.pin) home(); else { $('#bad').hidden = false; e.target.value = ''; } } };
   $('#forgot').onclick = () => { settings.pin = ''; saveSettings(); home(); };
+}
+
+/* ---------- Memory Vault ---------- */
+/* Memories are kept in localStorage (synced to the account with everything else). Photos, videos and recordings
+   are kept on this device in IndexedDB and, when signed in, backed up to a private storage folder only this person can open. */
+const mediaDB = (() => {
+  let db = null;
+  const open = () => db ??= new Promise((res, rej) => {
+    const r = indexedDB.open('swy-media', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('m');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  const run = async (mode, fn) => { const d = await open(); return new Promise((res, rej) => { const t = d.transaction('m', mode); const q = fn(t.objectStore('m')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); }); };
+  return {
+    put: (id, blob) => run('readwrite', s => s.put(blob, id)),
+    get: (id) => run('readonly', s => s.get(id)).catch(() => null),
+    del: (id) => run('readwrite', s => s.delete(id)).catch(() => {}),
+  };
+})();
+const vaultItems = () => loadJSON('swy-vault', []);
+const saveVault = (v) => saveJSON('swy-vault', v);
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function addMemory(m) { const item = { id: newId(), created: Date.now(), fav: false, media: null, ...m }; saveVault([item, ...vaultItems()]); return item; }
+const MAX_VIDEO = 50 * 1024 * 1024;
+
+const objectUrls = {}, signed = {};
+async function mediaSrc(m) {
+  if (objectUrls[m.id]) return objectUrls[m.id];
+  const b = await mediaDB.get(m.id);
+  if (b) return objectUrls[m.id] = URL.createObjectURL(b);
+  if (signedIn() && m.uploaded) {
+    const s = signed[m.id];
+    if (s && Date.now() - s.t < 45 * 60e3) return s.u;
+    const u = await acct().mediaUrl(m.id);
+    if (u) { signed[m.id] = { u, t: Date.now() }; return u; }
+  }
+  return null;
+}
+/* Fills every [data-media] placeholder on the current screen. data-thumb shows a still preview instead of a player. */
+function hydrateMedia() {
+  const items = vaultItems();
+  app.querySelectorAll('[data-media]').forEach(async (el) => {
+    const m = items.find(x => x.id === el.dataset.media);
+    if (!m || !m.media) return;
+    const src = await mediaSrc(m);
+    if (!src) { el.classList.add('missing'); el.innerHTML = `<span class="muted small">${signedIn() ? 'Still uploading from your other device' : 'Saved on another device. Sign in to see it here.'}</span>`; return; }
+    const thumb = 'thumb' in el.dataset, t = m.media.type;
+    el.innerHTML = t === 'image' ? `<img src="${src}" alt="${esc(m.title || 'A saved photo')}">`
+      : t === 'video' ? (thumb ? `<video src="${src}#t=0.1" muted playsinline preload="metadata"></video><span class="play-badge">${icon('play')}</span>` : `<video src="${src}" controls playsinline preload="metadata"></video>`)
+      : `<audio src="${src}" controls preload="metadata"></audio>`;
+  });
+}
+let backingUp = false;
+async function backupMedia() {
+  if (!signedIn() || backingUp) return;
+  backingUp = true;
+  try {
+    for (const m of vaultItems().filter(x => x.media && !x.uploaded)) {
+      const b = await mediaDB.get(m.id);
+      if (!b) continue;
+      const r = await acct().uploadMedia(m.id, b);
+      if (!r.error) saveVault(vaultItems().map(x => x.id === m.id ? { ...x, uploaded: true } : x));
+    }
+  } finally { backingUp = false; }
+}
+async function compressImage(file) {
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise(r => c.toBlob(b => r(b || file), 'image/jpeg', 0.86));
+  } catch (e) { return file; }
+}
+
+const KINDS = {
+  photo: { label: 'Photo', hint: 'A picture you never want to lose', media: 'image', title: 'What is this moment?', ph: 'Our trip to the lake' },
+  story: { label: 'A story', hint: 'Something that happened, told your way', title: 'Give it a name', ph: 'The time we…' },
+  funny: { label: 'Funny memory', hint: 'The things that still make you smile', title: 'Give it a name', ph: 'They laughed so hard when…' },
+  saying: { label: 'Something they always said', hint: 'Their words, in their voice', title: '', ph: '“Don’t forget your coat.”' },
+  voice: { label: 'Voice recording', hint: 'Record a memory, or save a voicemail', media: 'audio', title: 'What is this recording?', ph: '' },
+  video: { label: 'Video', hint: 'A clip of them, or a day together', media: 'video', title: 'What is this moment?', ph: '' },
+  letter: { label: 'A letter to them', hint: 'Write what you wish you could tell them', title: '', ph: '' },
+  lesson: { label: 'A life lesson', hint: 'Something they taught you', title: '', ph: 'They taught me to…' },
+  recipe: { label: 'A recipe', hint: 'The dish that tastes like home', title: 'Name of the dish', ph: 'Ingredients and steps, or just how it tasted' },
+  song: { label: 'A song', hint: 'Music that brings them close', title: 'Song and artist', ph: 'What it reminds you of' },
+  scripture: { label: 'Favorite Scripture', hint: 'A verse they loved, or one that holds you now', title: 'Reference, like Psalm 23', ph: 'The words of the verse' },
+  date: { label: 'A special date', hint: 'Anniversaries, traditions, days that matter', title: 'What is this day?', ph: 'How you’d like to remember it', date: true },
+  moment: { label: 'A wave of grief', hidden: true, title: '', ph: '' },
+};
+const FILTERS = [['all', 'All'], ['media', 'Photos and recordings'], ['words', 'Words'], ['letter', 'Letters'], ['fav', 'Favorites']];
+const inFilter = (f, m) => f === 'all' || (f === 'fav' ? m.fav : f === 'media' ? !!m.media : f === 'letter' ? m.kind === 'letter' : !m.media && m.kind !== 'letter');
+let vaultFilter = 'all';
+
+const focusName = () => profile.people[profile.focus] ? profile.people[profile.focus].name : '';
+const forFocus = (items) => { const w = focusName(); return items.filter(m => !w || !m.who || m.who === w); };
+const fmtDay = (d) => new Date(d.length === 10 ? d + 'T12:00' : d).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+
+const MEM_PROMPTS = [
+  (n) => `Today, remember something that always made ${n} laugh.`,
+  (n) => `What is a place that will always feel like ${n}?`,
+  (n) => `How did ${n} say your name?`,
+  (n) => `What is something ${n} taught you without meaning to?`,
+  (n) => `What would ${n} have ordered at their favorite restaurant?`,
+  (n) => `Remember a time ${n} made you feel safe, proud, or loved.`,
+  (n) => `What song will always make you think of ${n}?`,
+];
+const BABY_PROMPTS = [
+  (n) => `What do you always want to remember about ${n}?`,
+  (n) => `What did you dream for ${n}?`,
+  (n) => `What is something you would want ${n} to know about you?`,
+  (n) => `Where do you feel close to ${n}?`,
+];
+const memPrompt = (p) => { const list = p.relation === 'Baby' ? BABY_PROMPTS : MEM_PROMPTS; return pick(list.map(f => f(p.name)), 3); };
+const promptPerson = () => profile.people[profile.focus] || profile.people[day % Math.max(1, profile.people.length)];
+
+function memoryOfTheDay() {
+  const p = promptPerson();
+  if (!p) return '';
+  const items = plusOpen() ? forFocus(vaultItems()) : [];
+  if (items.length) {
+    const m = items[day % items.length];
+    return `<button class="card motd" onclick="memoryView('${m.id}')"><span class="eyebrow">Memory of the day</span>
+      ${m.media && m.media.type !== 'audio' ? `<span class="mem-media" data-media="${m.id}" data-thumb></span>` : ''}
+      ${m.title ? `<strong class="motd-title">${esc(m.title)}</strong>` : ''}${m.text ? `<span class="mem-text">${esc(m.text)}</span>` : ''}
+      ${m.media && m.media.type === 'audio' ? `<span class="muted small">A voice recording, saved ${fmtDate(m.created)}</span>` : ''}</button>`;
+  }
+  return `<div class="note-card motd"><span class="eyebrow">Memory of the day</span><p class="motd-prompt">${esc(memPrompt(p))}</p>
+    <div class="row"><button class="tiny-btn" onclick="vaultAdd()">Save it in my Memory Vault</button></div></div>`;
+}
+
+/* Everyone can always open what they saved. Adding new memories is part of Plus. */
+function vault() { _tab = 'remember'; if (plusOpen() || vaultItems().length) vaultScreen(); else plansScreen('vault'); }
+function vaultAdd(kind) { plusOnly(() => kind ? memoryForm(kind) : addPicker(), 'vault'); }
+function vaultScreen() {
+  const all = forFocus(vaultItems());
+  const shown = all.filter(m => inFilter(vaultFilter, m));
+  const p = promptPerson();
+  render(`<button class="back" onclick="home()">Home</button>
+    <div class="plus-head"><span class="eyebrow">Memory Vault</span><h2>Remembering <span class="name">${esc(L())}</span></h2>
+    <p class="muted">Photos, stories, and the little things you never want to forget. Private to you.</p></div>
+    ${plusOpen() ? `<button class="btn" onclick="addPicker()">Add a memory</button>`
+      : `<div class="note-card"><p>Your memories are always yours to keep and look back on. Adding new ones is part of Still With You Plus.</p><div class="row"><button class="tiny-btn" onclick="plansScreen('vault')">See Plus</button></div></div>`}
+    ${all.length ? `<div class="chips" role="group" aria-label="Show">${FILTERS.map(([k, l]) => `<button class="chip" aria-pressed="${vaultFilter === k}" onclick="vaultFilter='${k}';vaultScreen()">${l}</button>`).join('')}</div>` : ''}
+    ${shown.length ? `<div class="vault-grid">${shown.map(memTile).join('')}</div>`
+      : all.length ? `<p class="muted" style="text-align:center">Nothing here yet.</p>`
+      : `<div class="card empty-vault"><span class="eyebrow">A place to begin</span><p class="motd-prompt">${esc(p ? memPrompt(p) : '')}</p>
+         <div class="chips">${['story', 'photo', 'saying', 'letter'].map(k => `<button class="chip" onclick="vaultAdd('${k}')">${KINDS[k].label}</button>`).join('')}</div></div>`}
+    <p class="note">${signedIn() ? 'Backed up privately to your account. Only you can see your memories.' : acct() ? 'Saved on this device only. A free account keeps your memories safe if you lose your phone.' : 'Saved on this device only.'}</p>`, false, { tab: 'remember' });
+}
+function memTile(m) {
+  const k = KINDS[m.kind] || KINDS.story, visual = m.media && m.media.type !== 'audio';
+  return `<button class="mem ${m.kind}" onclick="memoryView('${m.id}')">
+    ${visual ? `<span class="mem-media" data-media="${m.id}" data-thumb></span>` : ''}
+    <span class="eyebrow">${esc(k.label)}${m.fav ? ' <span aria-label="Favorite">♥</span>' : ''}</span>
+    ${m.title ? `<strong>${esc(m.title)}</strong>` : ''}
+    ${m.date ? `<span class="muted small">${fmtDay(m.date)}</span>` : ''}
+    ${m.text ? `<span class="mem-text">${esc(m.text)}</span>` : ''}
+    ${m.media && m.media.type === 'audio' ? `<span class="muted small">${icon('play')} Voice recording</span>` : ''}
+  </button>`;
+}
+function addPicker() {
+  render(`<button class="back" onclick="vaultScreen()">Memory Vault</button>
+    <span class="eyebrow">Add a memory</span><h2>What would you like to keep?</h2>
+    <div class="kinds">${Object.entries(KINDS).filter(([, k]) => !k.hidden).map(([key, k]) => `<button onclick="memoryForm('${key}')"><strong>${k.label}</strong><span class="muted small">${k.hint}</span></button>`).join('')}</div>`, false, { tab: 'remember' });
+}
+
+const LETTER_STARTS = ['I wish you were here.', 'Something happened today that I wanted to tell you.', 'I’m struggling today.', 'I remembered when we…'];
+let recorder = null;
+function memoryForm(kind, id = '') {
+  const old = id ? vaultItems().find(m => m.id === id) : null;
+  const k = KINDS[kind] || KINDS.story;
+  const people = profile.people;
+  let who = old ? old.who : (focusName() || (people.length === 1 ? people[0].name : ''));
+  let pending = null;
+  const letter = kind === 'letter';
+  const dear = who || L();
+  render(`<button class="back" id="bk">${old ? 'Back' : 'Add a memory'}</button>
+    <span class="eyebrow">${esc(k.label)}</span>
+    <h2>${letter ? `Dear ${esc(dear)},` : old ? 'Edit this memory' : `Remembering ${esc(who || L())}`}</h2>
+    ${people.length > 1 ? `<div><p class="muted small" style="margin-bottom:8px">Who is this about?</p><div class="chips" id="who">${people.map(p => `<button class="chip" data-w="${esc(p.name)}" aria-pressed="${who === p.name}">${esc(p.name)}</button>`).join('')}<button class="chip" data-w="" aria-pressed="${!who}">More than one</button></div></div>` : ''}
+    ${k.media === 'image' || k.media === 'video' ? `<label class="drop" id="drop">${old && old.media ? `<div class="mem-media" data-media="${old.id}"></div>` : `<span>${k.media === 'image' ? 'Choose a photo' : 'Choose a video'}</span><span class="muted small">${k.media === 'video' ? 'Up to 50 MB' : 'From your phone or computer'}</span>`}<input type="file" id="file" accept="${k.media}/*" hidden></label>` : ''}
+    ${k.media === 'audio' ? `<div class="card rec"><div class="row"><button class="play" id="rec" type="button">${icon('play')}Start recording</button><span id="rt" class="muted small"></span></div>
+      <div id="rprev">${old && old.media ? `<div class="mem-media" data-media="${old.id}"></div>` : ''}</div>
+      <label class="tiny-btn" style="align-self:flex-start">Or choose a recording<input type="file" id="file" accept="audio/*" hidden></label></div>` : ''}
+    ${k.date ? `<div class="field"><label for="md">Date</label><input id="md" type="date" value="${esc(old ? old.date || '' : '')}"></div>` : ''}
+    ${k.title ? `<div class="field"><label for="mt">${k.title}</label><input id="mt" value="${esc(old ? old.title || '' : '')}" placeholder="${esc(k.ph && k.media ? k.ph : '')}"></div>` : ''}
+    ${letter ? `<div class="chips starters">${LETTER_STARTS.map((t, i) => `<button class="chip" data-s="${i}">${t}</button>`).join('')}</div>` : ''}
+    <div class="field">${k.media || k.title ? `<label for="mx">${k.media ? 'Anything you want to remember about it' : 'Tell it your way'} <span class="muted small" style="font-weight:600">(optional)</span></label>` : `<label for="mx" class="sr">${esc(k.label)}</label>`}
+      <textarea id="mx" rows="${letter ? 10 : 6}" class="ta" placeholder="${esc(k.media ? '' : k.ph)}">${esc(old ? old.text || '' : '')}</textarea></div>
+    ${letter ? '<p class="muted small">Letters are a private way to put your love and your missing into words. They stay here, just for you.</p>' : ''}
+    <p id="mmsg" class="muted" role="status" hidden></p>
+    <button class="btn" id="msave">${old ? 'Save changes' : 'Keep this memory'}</button>`, false, { tab: 'remember' });
+  $('#bk').onclick = () => { stopRec(); old ? memoryView(old.id) : addPicker(); };
+  const msg = (t) => { const m = $('#mmsg'); m.hidden = false; m.textContent = t; };
+  app.querySelectorAll('#who .chip').forEach(c => c.onclick = () => {
+    who = c.dataset.w; app.querySelectorAll('#who .chip').forEach(x => x.setAttribute('aria-pressed', x === c));
+    if (letter || !old) $('h2').textContent = letter ? `Dear ${who || L()},` : `Remembering ${who || L()}`;
+  });
+  app.querySelectorAll('[data-s]').forEach(c => c.onclick = () => { const ta = $('#mx'); ta.value = (ta.value.trim() ? ta.value.trimEnd() + '\n\n' : '') + LETTER_STARTS[+c.dataset.s] + ' '; ta.focus(); });
+  const showPreview = (url) => {
+    const box = k.media === 'audio' ? $('#rprev') : $('#drop');
+    const el = k.media === 'image' ? `<img src="${url}" alt="">` : k.media === 'video' ? `<video src="${url}" controls playsinline></video>` : `<audio src="${url}" controls></audio>`;
+    box.innerHTML = `<div class="mem-media">${el}</div>` + (k.media === 'audio' ? '' : `<span class="muted small">Tap to choose a different one</span><input type="file" id="file" accept="${k.media}/*" hidden>`);
+    bindFile();
+  };
+  const bindFile = () => {
+    const f = $('#file'); if (!f) return;
+    f.onchange = async () => {
+      const file = f.files[0]; if (!file) return;
+      if (k.media === 'video' && file.size > MAX_VIDEO) return msg('That video is larger than 50 MB. Try a shorter clip.');
+      if (file.size > MAX_VIDEO) return msg('That file is larger than 50 MB. Please choose a smaller one.');
+      pending = k.media === 'image' ? await compressImage(file) : file;
+      showPreview(URL.createObjectURL(pending));
+    };
+  };
+  bindFile();
+  const rb = $('#rec');
+  if (rb) rb.onclick = async () => {
+    if (recorder) return stopRec();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks = [], r = new MediaRecorder(stream), t0 = Date.now();
+      recorder = { r, stream, tick: setInterval(() => { const s = Math.floor((Date.now() - t0) / 1000); const el = $('#rt'); if (el) el.textContent = `Recording ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }, 500) };
+      r.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      r.onstop = () => { pending = new Blob(chunks, { type: r.mimeType || 'audio/mp4' }); if ($('#rprev')) showPreview(URL.createObjectURL(pending)); };
+      r.start();
+      rb.innerHTML = `${icon('pause')}Stop recording`;
+    } catch (e) { msg('We couldn’t use your microphone. You can allow it in your browser settings, or choose a recording instead.'); }
+  };
+  $('#msave').onclick = async function () {
+    stopRec();
+    const title = $('#mt') ? $('#mt').value.trim() : '', text = $('#mx').value.trim(), date = $('#md') ? $('#md').value : '';
+    if (k.media && !pending && !(old && old.media)) return msg(k.media === 'audio' ? 'Record something or choose a recording first.' : `Choose a ${k.media === 'image' ? 'photo' : 'video'} first.`);
+    if (!k.media && !text && !title) return msg('Write a few words first. Even one line is enough.');
+    if (k.date && !date) return msg('Choose the date first.');
+    this.disabled = true; this.textContent = 'Saving…';
+    const fields = { kind, who, title, text, date };
+    let item;
+    if (old) { item = { ...old, ...fields }; saveVault(vaultItems().map(m => m.id === old.id ? item : m)); }
+    else item = addMemory(fields);
+    if (pending) {
+      try { await mediaDB.put(item.id, pending); } catch (e) {
+        this.disabled = false; this.textContent = 'Keep this memory';
+        if (!old) saveVault(vaultItems().filter(m => m.id !== item.id));
+        return msg('This browser couldn’t save the file. If you’re in a private window, try a regular one.');
+      }
+      delete objectUrls[item.id];
+      saveVault(vaultItems().map(m => m.id === item.id ? { ...m, media: { type: k.media, mime: pending.type }, uploaded: false } : m));
+      backupMedia();
+    }
+    vaultFilter = 'all';
+    memoryView(item.id, true);
+  };
+}
+function stopRec() {
+  if (!recorder) return;
+  clearInterval(recorder.tick);
+  try { recorder.r.state !== 'inactive' && recorder.r.stop(); } catch (e) {}
+  recorder.stream.getTracks().forEach(t => t.stop());
+  recorder = null;
+  const rb = $('#rec'); if (rb) rb.innerHTML = `${icon('play')}Record again`;
+  const el = $('#rt'); if (el) el.textContent = '';
+}
+function memoryView(id, justSaved = false) {
+  const m = vaultItems().find(x => x.id === id);
+  if (!m) return vaultScreen();
+  const k = KINDS[m.kind] || KINDS.story;
+  const words = [m.title, m.text].filter(Boolean).join('. ');
+  render(`<button class="back" onclick="vaultScreen()">Memory Vault</button>
+    ${justSaved ? '<p class="saved-note">Kept safe in your Memory Vault.</p>' : ''}
+    <span class="eyebrow">${esc(k.label)}${m.who ? ` · ${esc(m.who)}` : ''}</span>
+    ${m.kind === 'letter' ? `<h2>Dear ${esc(m.who || L())},</h2>` : m.title ? `<h2>${esc(m.title)}</h2>` : ''}
+    ${m.media ? `<div class="mem-media full" data-media="${m.id}"></div>` : ''}
+    ${m.date ? `<p class="muted">${fmtDay(m.date)}</p>` : ''}
+    ${m.text ? `<div class="${m.kind === 'letter' ? 'card letter' : 'mem-body'}"><p>${esc(m.text)}</p></div>` : ''}
+    <p class="muted small">Saved ${fmtDate(m.created)}</p>
+    <div class="row">
+      ${words ? `<button class="play" id="lis">${icon('play')}Listen</button>` : ''}
+      <button class="tiny-btn" id="fav" aria-pressed="${!!m.fav}">${m.fav ? 'Favorite' : 'Add to favorites'}</button>
+      ${plusOpen() && m.kind !== 'moment' ? `<button class="tiny-btn" onclick="memoryForm('${m.kind}','${m.id}')">Edit</button>` : ''}
+      <button class="tiny-btn" id="del">Delete</button>
+    </div>
+    <div id="delask" class="sheet" hidden><p>Delete this memory? This can’t be undone.</p><div class="row" style="margin-top:12px"><button class="tiny-btn" id="delyes">Yes, delete it</button><button class="tiny-btn" id="delno">Keep it</button></div></div>`, false, { tab: 'remember' });
+  if ($('#lis')) $('#lis').onclick = function () { listen(this, words); };
+  $('#fav').onclick = () => { saveVault(vaultItems().map(x => x.id === id ? { ...x, fav: !x.fav } : x)); memoryView(id); };
+  $('#del').onclick = () => { $('#delask').hidden = false; };
+  $('#delno').onclick = () => { $('#delask').hidden = true; };
+  $('#delyes').onclick = async () => {
+    saveVault(vaultItems().filter(x => x.id !== id));
+    if (m.media) { mediaDB.del(id); if (signedIn()) acct().removeMedia(id); }
+    vaultScreen();
+  };
+}
+
+/* Hard-day mode: one memory, shown gently. Free for everyone, with no prompts to upgrade. */
+function rememberOne() {
+  const items = forFocus(vaultItems());
+  let i = Math.floor(Math.random() * Math.max(1, items.length));
+  const p = promptPerson();
+  const draw = () => {
+    const m = items[i];
+    render(`${backTo(true)}<span class="eyebrow">Remembering ${esc(L())}</span>
+      ${m ? `${m.media ? `<div class="mem-media full" data-media="${m.id}"></div>` : ''}
+        ${m.title ? `<h2>${esc(m.title)}</h2>` : ''}${m.text ? `<p class="response" style="font-size:1.3rem;white-space:pre-line">${esc(m.text)}</p>` : ''}
+        ${items.length > 1 ? '<button class="btn ghost" id="next">Show another memory</button>' : ''}`
+      : `<p class="response">${esc(p ? memPrompt(p) : 'Take a moment to remember them.')}</p>
+        <p class="muted">Close your eyes if you like. Let the memory come slowly. There is no rush, and no wrong way to remember.</p>`}
+      <div class="card prayer"><p class="text">Lord, thank You for every moment I had with ${esc(L())}. Hold these memories safe for me, and hold me too. Amen.</p></div>`, true);
+    if ($('#next')) $('#next').onclick = () => { i = (i + 1) % items.length; draw(); };
+  };
+  draw();
+}
+
+/* ---------- Grief companion ---------- */
+const CRISIS = /suicid|kill (myself|me)|end (my|it all)|end my life|take my (own )?life|want(ed)? to die|wish i (was|were) dead|don'?t want to (live|be here|wake up)|no reason to live|hurt(ing)? myself|better off without me|be with (him|her|them) again|join (him|her|them)\b/i;
+const CARE_CARD = `<div class="card care"><strong>You matter, and you don’t have to carry this alone.</strong><p>If you are thinking about ending your life or might hurt yourself, please call or text <strong>988</strong> (Suicide &amp; Crisis Lifeline, US) or your local emergency number now. You can also reach out to someone you trust.</p><div class="row"><a class="tiny-btn" href="tel:988">Call 988</a><a class="tiny-btn" href="sms:988">Text 988</a></div></div>`;
+let chat = loadJSON('swy-chat', []);
+let chatBusy = false;
+const saveChat = () => { chat = chat.slice(-60); try { localStorage.setItem('swy-chat', JSON.stringify(chat)); } catch (e) {} };
+const paras = (t) => t.split(/\n{2,}/).map(x => `<p>${esc(x).replace(/\n/g, '<br>')}</p>`).join('');
+const bubble = (m) => m.role === 'care' ? CARE_CARD
+  : m.role === 'note' ? `<p class="muted small chat-note">${esc(m.content)}</p>`
+  : `<div class="bubble ${m.role === 'user' ? 'me' : 'them'}">${m.content ? paras(m.content) : '<span class="typing" aria-label="Writing"><i></i><i></i><i></i></span>'}</div>`;
+
+function companion(calm = false) { if (calm === true) return companionScreen(true); plusOnly(() => companionScreen(false), 'companion'); }
+function companionScreen(calm) {
+  if (calm !== true) _tab = 'today';
+  const n = L();
+  const starters = [`I miss ${profile.people[profile.focus] ? n : (profile.people[0] || {}).name || 'them'}.`, 'I’m angry with God.', 'Today would have been a special day.', 'I don’t know how to move forward.', 'I feel guilty because I laughed today.'];
+  render(`${backTo(calm)}
+    <div class="chat-head"><span class="eyebrow">Talk about my grief</span>${chat.length ? '<button class="tiny-btn" id="newc">Start over</button>' : ''}</div>
+    <div class="bubble them"><p>I’m here, ${esc(profile.name)}. You can tell me anything about ${esc(n)}, or about today. There’s no right thing to say.</p></div>
+    <div class="chat" id="chat" aria-live="polite">${chat.map(bubble).join('')}</div>
+    <div class="chips starters" id="starters" ${chat.length ? 'hidden' : ''}>${starters.map(s => `<button class="chip">${esc(s)}</button>`).join('')}</div>
+    <form class="composer" id="cf"><label for="cm" class="sr">Your message</label><textarea id="cm" rows="2" class="ta" placeholder="Say what’s on your heart…"></textarea><button class="play" id="send" aria-label="Send">Send</button></form>
+    <p class="note">This companion is an AI. It listens and can pray with you, but it isn’t a counselor or pastor. Each message is sent securely to write a reply; your conversation is kept only on this device. If you are in danger, call or text <strong>988</strong>.</p>`, calm, { noTabs: true, cls: 'chat-screen' });
+  app.scrollTop = app.scrollHeight;
+  const ta = $('#cm');
+  $('#cf').onsubmit = (e) => { e.preventDefault(); const t = ta.value.trim(); if (t && !chatBusy) { ta.value = ''; sendChat(t); } };
+  ta.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('#cf').requestSubmit(); } };
+  app.querySelectorAll('#starters .chip').forEach(c => c.onclick = () => { if (!chatBusy) sendChat(c.textContent); });
+  const nc = $('#newc');
+  if (nc) nc.onclick = () => { if (chatBusy) return; chat = []; saveChat(); companionScreen(calm); };
+}
+async function sendChat(text) {
+  chatBusy = true;
+  const box = $('#chat'), st = $('#starters');
+  if (st) st.hidden = true;
+  chat.push({ role: 'user', content: text });
+  if (CRISIS.test(text)) chat.push({ role: 'care' });
+  const reply = { role: 'assistant', content: '' };
+  const history = chat.filter(m => m.role === 'user' || m.role === 'assistant').map(({ role, content }) => ({ role, content }));
+  chat.push(reply);
+  const draw = () => {
+    if (!document.body.contains(box)) return;
+    const near = app.scrollHeight - app.scrollTop - app.clientHeight < 160;
+    box.innerHTML = chat.map(bubble).join('');
+    if (near || !reply.content) app.scrollTop = app.scrollHeight;
+  };
+  draw();
+  const bridge = window.swyAccount;
+  const r = bridge ? await bridge.companion({ messages: history, name: profile.name, people: profile.people.map(({ name, relation, cause, passed }) => ({ name, relation, cause, passed })) }, (t) => { reply.content += t; draw(); })
+    : { error: 'The companion isn’t available just now. Please try again in a moment.' };
+  if (r.error) { chat.splice(chat.indexOf(reply), 1); chat.push({ role: 'note', content: r.error }); }
+  saveChat(); draw();
+  chatBusy = false;
+}
+
+/* Hard-day "Let me talk" for people without Plus: a quiet place to write, never an upgrade prompt. */
+function letMeWrite() {
+  render(`${backTo(true)}<h2>Let it out</h2>
+    <p class="muted">Write whatever you feel, however it comes. Nothing here is saved or sent.</p>
+    <textarea id="lw" rows="8" class="ta" autofocus></textarea>
+    <button class="btn" id="done">I’ve said what I needed to</button>
+    <div id="after" hidden></div>`, true);
+  $('#done').onclick = () => {
+    const t = $('#lw').value;
+    const a = $('#after'); a.hidden = false;
+    a.innerHTML = `${CRISIS.test(t) ? CARE_CARD : ''}<p class="response" style="font-size:1.3rem">Thank you for putting that into words. What you feel makes sense, and you don’t have to carry it alone.</p>
+      <div class="options" style="margin-top:16px"><button onclick="prayer(true)">Pray with me</button><button onclick="breathe(true)">Help me breathe</button><button onclick="support(true)">Call someone I trust</button></div>`;
+    $('#lw').value = ''; $('#done').hidden = true;
+  };
 }
 
 /* ---------- Still With You Plus ---------- */

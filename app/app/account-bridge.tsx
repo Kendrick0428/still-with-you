@@ -20,6 +20,10 @@ declare global {
       plan: () => Promise<Plan>;
       checkout: (plan: "month" | "year") => Promise<{ error?: string }>;
       managePlan: () => Promise<{ error?: string }>;
+      uploadMedia: (id: string, blob: Blob) => Promise<{ error?: string }>;
+      mediaUrl: (id: string) => Promise<string | null>;
+      removeMedia: (id: string) => Promise<void>;
+      companion: (body: unknown, onText: (t: string) => void) => Promise<{ error?: string }>;
     };
   }
 }
@@ -116,9 +120,51 @@ export default function AccountBridge() {
           if (r.url) { location.href = r.url as string; return {}; }
           return { error: (r.error as string) || "We couldn’t open your plan settings just now. Please try again." };
         },
+        // Memory Vault photos, videos and recordings live in a private bucket, one folder per person.
+        async uploadMedia(id, blob) {
+          if (!sb || !userId) return { error: "You’re not signed in." };
+          const { error } = await sb.storage.from("vault").upload(`${userId}/${id}`, blob, { contentType: blob.type || undefined, upsert: true });
+          if (error) console.error("Couldn’t upload memory", error);
+          return error ? { error: "We couldn’t back this up just now. It’s still saved on this device." } : {};
+        },
+        async mediaUrl(id) {
+          if (!sb || !userId) return null;
+          const { data } = await sb.storage.from("vault").createSignedUrl(`${userId}/${id}`, 3600);
+          return data?.signedUrl ?? null;
+        },
+        async removeMedia(id) {
+          if (sb && userId) await sb.storage.from("vault").remove([`${userId}/${id}`]);
+        },
+        // Streams the grief companion's reply, calling onText with each new piece of text.
+        async companion(body, onText) {
+          try {
+            const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
+            const res = await fetch("/api/companion", {
+              method: "POST",
+              headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+              body: JSON.stringify(body),
+            });
+            if (!res.ok || !res.body) {
+              const r = await res.json().catch(() => ({}));
+              return { error: (r as { error?: string }).error || "I couldn’t answer just now. Please try again in a moment." };
+            }
+            const reader = res.body.getReader();
+            const dec = new TextDecoder();
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              onText(dec.decode(value, { stream: true }));
+            }
+            return {};
+          } catch {
+            return { error: "We couldn’t reach Still With You just now. Please check your connection." };
+          }
+        },
         async deleteData() {
           if (!sb || !userId) return { error: "You’re not signed in." };
           const { error } = await sb.from("user_data").delete().eq("user_id", userId);
+          const { data: files } = await sb.storage.from("vault").list(userId, { limit: 1000 });
+          if (files?.length) await sb.storage.from("vault").remove(files.map((f) => `${userId}/${f.name}`));
           return error ? { error: "We couldn’t delete your data just now. Please try again." } : {};
         },
       };

@@ -10,6 +10,7 @@ Live at https://still-with-you-iota.vercel.app
 - `/app` the web app (onboarding, home, heart check-in, hard-day mode, prayers, journal prompt, practical help, settings). It can be installed to a phone's home screen.
 - `/privacy` plain-language privacy page
 - `/api/waitlist` stores waitlist emails
+- `/api/companion` the grief companion (streams a reply from Claude)
 
 Without an account, everything a person enters in `/app` is saved only in their own browser (localStorage). With a free account (Supabase), the same entries sync to a private row in the `user_data` table that only that person can read. The app lock code is never uploaded.
 
@@ -46,6 +47,7 @@ Until those variables exist, the app hides every account option and works on-dev
 - `app/app/account-bridge.tsx`: sign-up, sign-in and sync, exposed to the app as `window.swyAccount`
 - `supabase/schema.sql`: database table and privacy rules
 - `app/page.tsx`, `app/landing.css`: the landing page
+- `app/api/companion/route.ts`: the grief companion's instructions and safety rules
 
 ## Plans and payments (Stripe)
 
@@ -58,3 +60,18 @@ Still With You Plus is $6.99 a month or $49 a year, with a 7-day free trial for 
 - Routes: `/api/billing/checkout`, `/api/billing/status`, `/api/billing/portal`. Helpers are in `lib/billing.ts`.
 
 To try checkout in test mode, use Stripe's test card `4242 4242 4242 4242` with any future date, any CVC and any ZIP.
+
+## Memory Vault
+
+Photos, videos (up to 50 MB), voice recordings, stories, sayings, recipes, songs, letters, special dates and favorite Scriptures, with a Memory of the Day on the home screen. Text memories sync with the rest of the account. Photos, videos and recordings are kept on the device (IndexedDB) and, when signed in, backed up to the private Supabase Storage bucket `vault`, one folder per person. `supabase/schema.sql` creates the bucket and its privacy rules.
+
+Adding memories is part of Plus, but anyone who saved memories can always open them, even after a plan ends. In hard-day mode, "Help me remember" shows one saved memory (or a gentle prompt) for everyone.
+
+## Grief companion
+
+A private conversation with Claude, written to listen first, avoid grief clichés and timelines, offer prayer and Scripture when it fits, and point to 988 when someone may be in danger. The app also shows a 988 card on its own when a message mentions self-harm, before any reply.
+
+- Add `ANTHROPIC_API_KEY` in Vercel (from console.anthropic.com → API keys). Without it, the companion says it isn't turned on yet.
+- Optional: `COMPANION_MODEL` to use a different Claude model (default `claude-opus-5-5`).
+- When accounts and plans are on, only signed-in Plus members can use it, checked on the server. With Upstash connected, each person is limited to 150 messages a day.
+- Conversations are kept only on the person's device. Hard-day mode's "Let me talk" opens the companion for Plus members and a free private writing space for everyone else.
