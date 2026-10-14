@@ -68,5 +68,7 @@ body { background: var(--page); color: var(--ink); font-family: var(--body); fon
 .l-prose { gap: 14px; }
 .l-prose h1 { font-size: 2.8rem; }
 .l-prose h2 { font-size: 1.6rem; margin-top: 18px; }
+.l-prose ul { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
+.l-prose a { color: inherit; }
 .l-back { text-decoration: none; font-weight: 600; color: var(--ink-2); }
 @media (prefers-reduced-motion: reduce) { .l-sun { animation: none; } }
