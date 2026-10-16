@@ -316,6 +316,8 @@ function home() {
         </div>
       </div>
 
+      ${vaultCard()}
+
       <button class="wave" onclick="wave()">${icon('wave')}<span><strong>A wave of grief just hit me</strong><small>For sudden moments: a song, a smell, their handwriting</small></span></button>
 
       ${causeCards()}
@@ -739,6 +741,16 @@ function memoryOfTheDay() {
   }
   return `<div class="note-card motd"><span class="eyebrow">Memory of the day</span><p class="motd-prompt">${esc(memPrompt(p))}</p>
     <div class="row"><button class="tiny-btn" onclick="vaultAdd()">Save it in my Memory Vault</button></div></div>`;
+}
+
+/* Home screen doorway into the vault, so it is easy to find. */
+function vaultCard() {
+  if (!profile.people.length) return '';
+  const n = forFocus(vaultItems()).length;
+  const sub = n ? `${n} ${n === 1 ? 'memory' : 'memories'} of ${esc(L())}, kept safe` : `Photos, stories, voices, and recipes of ${esc(L())}, kept safe in one place`;
+  return `<button class="vault-card" onclick="vault()"><span class="well">${icon('remember')}</span>
+    <span class="vc-t"><span class="eyebrow">Memory Vault${plusOpen() ? '' : ' <span class="vc-plus">Plus</span>'}</span><strong>${n ? 'Open my Memory Vault' : 'Start my Memory Vault'}</strong><small>${sub}</small></span>
+    <span class="vc-go" aria-hidden="true">\u203a</span></button>`;
 }
 
 /* Everyone can always open what they saved. Adding new memories is part of Plus. */

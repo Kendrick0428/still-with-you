@@ -292,6 +292,15 @@ button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-c
 .motd-title { font-family: var(--display); font-weight: 400; font-size: 1.3rem; font-variation-settings: "SOFT" 100; }
 .motd-prompt { font-family: var(--display); font-size: 1.32rem; line-height: 1.35; font-weight: 350; font-variation-settings: "SOFT" 100; }
 .empty-vault { gap: 14px; }
+.vault-card { display: flex; gap: 14px; align-items: center; text-align: left; color: var(--ink); font: inherit; border-radius: 24px; padding: 18px; border: 1px solid color-mix(in srgb, var(--gold) 35%, transparent); background: linear-gradient(135deg, var(--gold-wash), var(--surface) 70%); box-shadow: var(--lift); transition: transform .2s ease; }
+.vault-card:active { transform: scale(.98); }
+.vault-card .well { width: 52px; height: 52px; flex: none; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 50% 35%, var(--surface), var(--gold-wash)); border: 1px solid color-mix(in srgb, var(--gold) 30%, transparent); }
+.vault-card .well svg { width: 24px; height: 24px; stroke: var(--gold); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.vc-t { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.vc-t strong { font-family: var(--display); font-weight: 400; font-size: 1.28rem; line-height: 1.25; font-variation-settings: "SOFT" 100; }
+.vc-t small { font-size: .88rem; color: var(--ink-2); line-height: 1.35; }
+.vc-plus { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 99px; background: var(--gold); color: var(--surface); font-size: .68rem; letter-spacing: .06em; vertical-align: 1px; }
+.vc-go { font-size: 1.8rem; color: var(--gold); line-height: 1; }
 
 /* ---------- Grief companion ---------- */
 .chat-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
