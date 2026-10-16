@@ -36,7 +36,7 @@ export default function Privacy() {
         <p>Payments are handled by Stripe. Your card details go straight to Stripe and never reach us. We share only your account email with Stripe so your plan is linked to you, and we never share anything you&rsquo;ve written in the app. We can see your plan, its status, and payment amounts so we can run the service.</p>
 
         <h2>Other things we collect</h2>
-        <p>If you join the waitlist, we store your email address so we can tell you when new features are ready. Like most websites, our hosting provider (Vercel) keeps basic technical logs such as IP address and browser type to keep the site secure and working. We count companion messages per account each day to keep the service fair.</p>
+        <p>If you joined our early waitlist, we keep your email address only to tell you about Still With You. Like most websites, our hosting provider (Vercel) keeps basic technical logs such as IP address and browser type to keep the site secure and working. We count companion messages per account each day to keep the service fair.</p>
 
         <h2>Who helps us run Still With You</h2>
         <p>We use a small number of trusted service providers, only for the purposes above: Vercel (hosting), Supabase (accounts and storage), Stripe (payments), Anthropic (the grief companion), and Upstash (the waitlist and usage counts). We may also share information if the law requires it or to protect someone&rsquo;s safety.</p>
