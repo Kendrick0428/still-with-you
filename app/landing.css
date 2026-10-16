@@ -85,6 +85,19 @@ body { background: var(--page); color: var(--ink); font-family: var(--body); fon
 .l-footer { border-top: 1px solid var(--hair); max-width: 1080px; margin: 0 auto; padding: 36px 20px 48px; font-size: .9rem; color: var(--ink-2); display: flex; flex-direction: column; gap: 12px; }
 .l-footlinks a { text-decoration: none; font-weight: 600; }
 
+/* "A look inside": the real home screen in a soft phone frame, with a warm glow behind it. */
+.l-peek { flex-direction: row; align-items: center; gap: 64px; overflow-x: clip; }
+.l-peek-text { flex: 1 1 0; display: flex; flex-direction: column; gap: 18px; max-width: 520px; }
+.l-phone { position: relative; flex: 0 0 auto; width: 300px; margin: 0; padding: 10px; border-radius: 48px; background: #1d2836; box-shadow: 0 40px 80px -30px rgba(29,40,54,.45), 0 0 0 1px rgba(255,255,255,.06) inset; }
+.l-phone::before { content: ""; position: absolute; inset: -60px; z-index: -1; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--glow) 70%, transparent) 0%, transparent 65%); }
+.l-phone img { display: block; width: 100%; height: auto; aspect-ratio: 600 / 1298; border-radius: 38px; }
+@media (prefers-color-scheme: dark) { .l-phone { background: #0d131b; } .l-phone::before { opacity: .22; } }
+@media (max-width: 760px) {
+  .l-peek { flex-direction: column; align-items: stretch; gap: 48px; }
+  .l-peek-text { max-width: none; }
+  .l-phone { width: min(78vw, 300px); align-self: center; }
+}
+
 .l-prose { gap: 14px; }
 .l-prose h1 { font-size: 2.8rem; }
 .l-prose h2 { font-size: 1.6rem; margin-top: 18px; }
