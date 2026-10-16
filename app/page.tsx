@@ -64,6 +64,33 @@ export default function Landing() {
         <cite>Psalm 34:18 (KJV)</cite>
       </section>
 
+      <section className="l-section l-peek">
+        <div className="l-peek-text">
+          <p className="l-eyebrow dark">A look inside</p>
+          <h2>Gentle from the very first screen</h2>
+          <p className="l-muted">
+            Each morning greets you by name and remembers your loved one by theirs. A Scripture, a prayer, and a way to say how your heart is
+            doing are waiting, with the hard-day button always close at hand.
+          </p>
+          <div className="l-ctas" style={{ justifyContent: "flex-start" }}>
+            <a className="l-btn" href="/app">Open the app</a>
+          </div>
+        </div>
+        <figure className="l-phone">
+          <picture>
+            <source srcSet="/app-home-dark.webp" media="(prefers-color-scheme: dark)" />
+            <img
+              src="/app-home-light.webp"
+              width={600}
+              height={1298}
+              loading="lazy"
+              decoding="async"
+              alt="The Still With You home screen: “Good morning, Sarah. We’re thinking about you as you continue remembering Michael,” with an “I’m having a hard day” button, a heart check-in, and today’s Scripture."
+            />
+          </picture>
+        </figure>
+      </section>
+
       <section className="l-section narrow">
         <h2>What Still With You will never do</h2>
         <ul className="l-never">
