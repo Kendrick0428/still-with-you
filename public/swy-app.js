@@ -16,6 +16,7 @@ const joinNames = (n) => n.length < 2 ? (n[0] || '') : n.length === 2 ? `${n[0]}
 /* The loved one(s) the app is speaking about right now: one person if the user chose a focus, otherwise everyone. */
 const L = () => { const f = profile.people[profile.focus]; return f ? f.name : joinNames(profile.people.map(p => p.name)); };
 let draft = null;
+let speaking = false;
 let _tab = '';
 
 const loadJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') ?? d; } catch (e) { return d; } };
@@ -125,6 +126,9 @@ const ICONS = {
   breathe: '<path d="M4 9h10a3 3 0 1 0-3-3M4 13h14a3 3 0 1 1-3 3M4 17h6"/>',
   play: '<path d="M9 7.5v9l7.5-4.5z" fill="currentColor" stroke="none"/>',
   pause: '<path d="M9 7v10M15 7v10" stroke-width="2.4"/>',
+  moon: '<path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/>',
+  calm: '<path d="M12 21c-4.5-2-7-5.5-7-9.5C5 7 8 4 12 3c4 1 7 4 7 8.5 0 4-2.5 7.5-7 9.5zM12 8v9"/>',
+  step: '<path d="M7 19c-1.7 0-3-1.6-3-3.5S5.3 11 7 11s3 2.6 3 4.5S8.7 19 7 19zM17 13c-1.7 0-3-1.6-3-3.5S15.3 5 17 5s3 2.6 3 4.5S18.7 13 17 13z"/>',
   heart: '<path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8.5 14s1.3 2 3.5 2 3.5-2 3.5-2"/>',
 };
 const icon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>`;
@@ -148,6 +152,8 @@ function render(html, calm = false, opt = {}) {
   device.classList.toggle('sky-mode', sky);
   device.classList.toggle('plain', !sky && !calm && !opt.hero);
   device.classList.toggle('rising', !!opt.rising);
+  if (!opt.keepDim) device.classList.remove('dim');
+  if (speaking) { try { speechSynthesis.cancel(); } catch (e) {} speaking = false; }
   tabs.hidden = sky || calm === true || !!opt.noTabs;
   tabs.innerHTML = TABS.map(([k, label, fn]) => `<button onclick="${fn.replace(/"/g, '&quot;')}" ${tab === k ? 'aria-current="page"' : ''}>${icon(k === 'today' ? 'sun' : k)}${label}</button>`).join('');
   app.innerHTML = `${calm === true ? '<div class="stars"></div>' : ''}<section class="screen ${opt.cls || ''}">${html}</section>`;
@@ -263,13 +269,12 @@ function setFocus(i) { profile.focus = i; save(); home(); }
 
 /* ---------- Home ---------- */
 const FEEL_C = { 'Peaceful': '#9cc3b0', 'Sad': '#8ea9c6', 'Lonely': '#a9a3c7', 'Angry': '#d49a86', 'Confused': '#c9b48a', 'Numb': '#b5b9bf', 'Anxious': '#dcb98a', 'Grateful': '#e3c27c', 'Overwhelmed': '#9b90b3', 'Hopeful': '#f0cd8c', 'I don\u2019t know': '#c8c1b4' };
-let speaking = false;
-function listen(btn, text) {
+function listen(btn, text, rate = .86, label = 'Listen') {
   try {
     const synth = window.speechSynthesis;
-    if (speaking) { synth.cancel(); speaking = false; btn.innerHTML = `${icon('play')}Listen`; return; }
-    const u = new SpeechSynthesisUtterance(text); u.rate = .86; u.pitch = .95;
-    u.onend = () => { speaking = false; btn.innerHTML = `${icon('play')}Listen`; };
+    if (speaking) { synth.cancel(); speaking = false; btn.innerHTML = `${icon('play')}${label}`; return; }
+    const u = new SpeechSynthesisUtterance(text); u.rate = rate; u.pitch = .95;
+    u.onend = () => { speaking = false; btn.innerHTML = `${icon('play')}${label}`; };
     synth.speak(u); speaking = true; btn.innerHTML = `${icon('pause')}Pause`;
   } catch (e) { btn.textContent = 'Audio comes in the full app'; }
 }
@@ -322,6 +327,15 @@ function home() {
 
       ${causeCards()}
 
+      <section class="sec">
+        <div class="sec-head"><h3>For the hard hours</h3></div>
+        <div class="hours">
+          <button onclick="sleepCorner()"><span class="well">${icon('moon')}</span><span><strong>Can\u2019t sleep</strong><small>Bedtime prayers and a quiet night screen</small></span></button>
+          <button onclick="calmWorry()"><span class="well">${icon('calm')}</span><span><strong>Calm my worry</strong><small>Breathing, grounding, and Scripture</small></span></button>
+          <button onclick="heavyDays()"><span class="well">${icon('step')}</span><span><strong>Heavy days</strong><small>One gentle step for today</small></span></button>
+        </div>
+      </section>
+
       ${memoryOfTheDay()}
 
       <p class="encourage">${pick(ENCOURAGE, 2)}</p>
@@ -373,6 +387,9 @@ function feelingResponse(f) {
       <button onclick="scripture()">A Scripture</button>
       <button onclick="journal()">A journal prompt</button>
       <button onclick="breathe()">A breathing exercise</button>
+      ${f === 'Anxious' || f === 'Overwhelmed' ? '<button onclick="calmWorry()">Help calming my worry</button>' : ''}
+      ${['Sad', 'Numb', 'Lonely', 'Overwhelmed'].includes(f) ? '<button onclick="heavyDays()">One gentle step for today</button>' : ''}
+      ${hr >= 21 || hr < 5 ? '<button onclick="sleepCorner()">Help for a sleepless night</button>' : ''}
       <button onclick="support()">Someone to contact</button>
     </div>
     <button class="btn link" onclick="home()">I’m okay for now</button>`);
@@ -388,6 +405,9 @@ function hardDay() {
       <button onclick="prayer(true)">Pray with me</button>
       <button onclick="scripture(true)">Give me a Scripture</button>
       <button onclick="breathe(true)">Help me breathe</button>
+      <button onclick="sleepCorner(true)">I can\u2019t sleep</button>
+      <button onclick="calmWorry(true)">Calm my worry</button>
+      <button onclick="heavyDays(true)">One gentle step</button>
       <button onclick="plusOpen() ? companion(true) : letMeWrite()">Let me talk</button>
       <button onclick="rememberOne()">Help me remember ${esc(L())}</button>
       <button onclick="support(true)">Call someone I trust</button>
@@ -496,6 +516,198 @@ function wave() {
     addMemory({ kind: 'moment', who: profile.people[profile.focus] ? L() : '', title: 'A wave of grief', text: t });
     $('#sv').disabled = true; $('#ok').hidden = false;
   };
+}
+
+/* ---------- Can't sleep, Calm my worry, Heavy days ---------- */
+/* All three are free. calm=true means they were opened from hard-day mode, so Back returns there. */
+const backFrom = (calm, parent) => `<button class="back" onclick="${parent ? `${parent}(${calm})` : calm ? 'hardDay()' : 'home()'}">${parent || calm ? 'Back' : 'Home'}</button>`;
+
+/* A breathing circle that follows timed phases: [label, seconds, size]. Counts down each phase; stops when the screen changes. */
+function paced(phases, rounds, done) {
+  const c = $('#pc'), t = $('#bt'), n = $('#bn'); let i = 0, r = 0;
+  const step = () => {
+    if (!document.body.contains(c)) return;
+    const [label, secs, scale] = phases[i]; let left = secs;
+    t.textContent = label; n.textContent = left;
+    c.style.transitionDuration = secs + 's'; c.style.transform = `scale(${scale})`;
+    const tick = setInterval(() => {
+      if (!document.body.contains(c)) return clearInterval(tick);
+      if (--left > 0) return n.textContent = left;
+      clearInterval(tick); i = (i + 1) % phases.length;
+      if (i === 0 && rounds && ++r >= rounds) return done && done();
+      step();
+    }, 1000);
+  };
+  step();
+}
+const breathCircle = (first) => `<div class="breath"><div class="breath-circle paced" id="pc"><span><span id="bt">${first}</span><b id="bn"></b></span></div></div>`;
+
+/* Scripture shown one phrase at a time, so it is read slowly. */
+const slowVerse = (v) => v.match(/[^,;:.]+[,;:.]?/g).map(p => p.trim()).map((p, i) => `<span style="animation-delay:${.4 + i * 1.6}s">${esc(p)} </span>`).join('');
+
+const nightPrayers = () => [
+  'Lord, the house is quiet and my mind is not. I give You the thoughts I cannot put down on my own. Watch over me tonight, and over the ones I love. Amen.',
+  `Father, nights are when I miss ${L()} the most. You do not sleep, and You do not leave. Let me rest in that, even if sleep is slow to come. Amen.`,
+  'Jesus, You know what it is to keep watch in the dark. Sit with me now. I do not need to sleep to be held by You. Amen.',
+];
+const NIGHT_VERSES = [
+  ['I will both lay me down in peace, and sleep: for thou, LORD, only makest me dwell in safety.', 'Psalm 4:8 (KJV)'],
+  ['When thou liest down, thou shalt not be afraid: yea, thou shalt lie down, and thy sleep shall be sweet.', 'Proverbs 3:24 (KJV)'],
+  ['Behold, he that keepeth Israel shall neither slumber nor sleep.', 'Psalm 121:4 (KJV)'],
+  ['Come unto me, all ye that labour and are heavy laden, and I will give you rest.', 'Matthew 11:28 (KJV)'],
+];
+function sleepCorner(calm = false) {
+  const NIGHT_PRAYERS = nightPrayers();
+  let p = Math.floor(Math.random() * NIGHT_PRAYERS.length), v = day % NIGHT_VERSES.length;
+  render(`${backFrom(calm)}
+    <div class="moon" aria-hidden="true"></div>
+    <h2>Can’t sleep?</h2>
+    <p class="muted">Nights can be the hardest part. You don’t have to fall asleep right now. You can simply rest here for a while.</p>
+    <div class="card prayer"><span class="eyebrow">A prayer for tonight</span><p class="text" id="np">${esc(NIGHT_PRAYERS[p])}</p>
+      <div class="row"><button class="play" id="lp">${icon('play')}Listen</button><button class="tiny-btn" id="ap">Another prayer</button></div></div>
+    <div class="card verse slow"><span class="eyebrow">Scripture, slowly</span><blockquote id="nv"></blockquote><cite id="nr"></cite>
+      <div class="row"><button class="play" id="lv">${icon('play')}Read it to me</button><button class="tiny-btn" id="av">Another verse</button></div></div>
+    <div class="options">
+      <button onclick="windDown(${calm})"><span class="t">Wind down with my breath<span class="muted small">Slow breathing with a longer breath out</span></span></button>
+      <button onclick="calmWorry(${calm})"><span class="t">My mind won’t stop racing<span class="muted small">Gentle ways to settle worry</span></span></button>
+    </div>
+    <button class="btn ghost" id="dim">${device.classList.contains('dim') ? 'Brighten the screen' : 'Dim the screen'}</button>
+    <p class="note">If sleepless nights keep coming for weeks, it’s worth mentioning to your doctor. Poor sleep is very common in grief, and there is help for it.</p>`, true, { keepDim: true });
+  const verse = () => { const [t, r] = NIGHT_VERSES[v]; $('#nv').innerHTML = slowVerse(t); $('#nr').textContent = r; };
+  verse();
+  $('#lp').onclick = function () { listen(this, NIGHT_PRAYERS[p], .78); };
+  $('#lv').onclick = function () { listen(this, NIGHT_VERSES[v][0], .7, 'Read it to me'); };
+  $('#ap').onclick = () => { p = (p + 1) % NIGHT_PRAYERS.length; $('#np').textContent = NIGHT_PRAYERS[p]; };
+  $('#av').onclick = () => { v = (v + 1) % NIGHT_VERSES.length; verse(); };
+  $('#dim').onclick = function () { const on = device.classList.toggle('dim'); this.textContent = on ? 'Brighten the screen' : 'Dim the screen'; };
+}
+function windDown(calm = false) {
+  render(`${backFrom(calm, 'sleepCorner')}
+    <h2>Wind down</h2>
+    <p class="muted">Breathe in for four, then out slowly for six. A longer breath out tells your body it is safe to rest.</p>
+    ${breathCircle('Breathe in')}
+    <p class="response" style="text-align:center;font-size:1.1rem" id="cue">Let your shoulders drop.</p>
+    <button class="btn ghost" id="dim">${device.classList.contains('dim') ? 'Brighten the screen' : 'Dim the screen'}</button>`, true, { keepDim: true });
+  const cues = ['Let your shoulders drop.', 'Unclench your jaw.', 'Let the bed hold your weight.', 'You don’t have to solve anything tonight.', 'God is keeping watch. You can rest.'];
+  let k = 0; const el = $('#cue');
+  const cueTick = setInterval(() => { if (!document.body.contains(el)) return clearInterval(cueTick); k = (k + 1) % cues.length; el.textContent = cues[k]; }, 20000);
+  paced([['Breathe in', 4, 1], ['Breathe out', 6, .62]]);
+  $('#dim').onclick = function () { const on = device.classList.toggle('dim'); this.textContent = on ? 'Brighten the screen' : 'Dim the screen'; };
+}
+
+const WORRY_VERSES = [
+  ['Be careful for nothing; but in every thing by prayer and supplication with thanksgiving let your requests be made known unto God. And the peace of God, which passeth all understanding, shall keep your hearts and minds through Christ Jesus.', 'Philippians 4:6–7 (KJV)'],
+  ['Casting all your care upon him; for he careth for you.', '1 Peter 5:7 (KJV)'],
+  ['Peace I leave with you, my peace I give unto you: not as the world giveth, give I unto you. Let not your heart be troubled, neither let it be afraid.', 'John 14:27 (KJV)'],
+  ['Thou wilt keep him in perfect peace, whose mind is stayed on thee.', 'Isaiah 26:3 (KJV)'],
+  ['In the multitude of my thoughts within me thy comforts delight my soul.', 'Psalm 94:19 (KJV)'],
+];
+function calmWorry(calm = false) {
+  let v = day % WORRY_VERSES.length;
+  const night = calm === true || hr >= 21 || hr < 5;
+  render(`${backFrom(calm)}
+    <span class="eyebrow">Calm my worry</span>
+    <h2>Let’s slow things down together.</h2>
+    <p class="muted">Worry often rides along with grief. You don’t have to make it go away. Let’s just make this moment a little quieter.</p>
+    <div class="options">
+      <button onclick="breathe478(${calm})"><span class="t">4-7-8 breathing<span class="muted small">In for 4, hold for 7, out for 8</span></span></button>
+      <button onclick="grounding(${calm})"><span class="t">5-4-3-2-1 grounding<span class="muted small">Notice what is around you, one sense at a time</span></span></button>
+    </div>
+    <div class="card verse"><span class="eyebrow">A word for a worried heart</span><blockquote id="wv"></blockquote><cite id="wr"></cite>
+      <div class="row"><button class="tiny-btn" id="av">Another verse</button></div></div>
+    <div class="card prayer"><p class="text">Lord, my thoughts are running ahead of me. I hand You what I cannot carry right now. Give me peace for this moment, and then the next. Amen.</p></div>`, night);
+  const verse = () => { const [t, r] = WORRY_VERSES[v]; $('#wv').textContent = `“${t}”`; $('#wr').textContent = r; };
+  verse();
+  $('#av').onclick = () => { v = (v + 1) % WORRY_VERSES.length; verse(); };
+}
+function breathe478(calm = false) {
+  const night = calm === true || hr >= 21 || hr < 5;
+  render(`${backFrom(calm, 'calmWorry')}
+    <h2>4-7-8 breathing</h2>
+    <p class="muted">Breathe in through your nose for 4, hold for 7, and breathe out slowly through your mouth for 8. We’ll do four rounds together.</p>
+    ${breathCircle('Breathe in')}
+    <p class="muted small" id="after" style="text-align:center">If holding your breath feels uncomfortable, just breathe out slowly instead. There is no wrong way to do this.</p>`, night);
+  paced([['Breathe in', 4, 1], ['Hold', 7, 1], ['Breathe out', 8, .62]], 4, () => {
+    $('#bt').textContent = 'Well done'; $('#bn').textContent = '';
+    $('#after').outerHTML = `<p class="response" style="text-align:center;font-size:1.15rem">Let your breathing return to its own pace.</p><button class="btn ghost" onclick="breathe478(${calm})">Do it again</button>`;
+  });
+}
+function grounding(calm = false) {
+  const night = calm === true || hr >= 21 || hr < 5;
+  const steps = [
+    ['5', 'things you can see', 'Look around slowly. A lamp, a window, the color of a wall. Name each one, out loud or in your head.'],
+    ['4', 'things you can feel', 'Your feet on the floor, the chair under you, the air on your skin, your hands resting.'],
+    ['3', 'things you can hear', 'A clock, a car outside, your own breath. Let each sound simply be there.'],
+    ['2', 'things you can smell', 'Coffee, soap, fresh air. If nothing comes, think of two smells you love.'],
+    ['1', 'thing you can taste', 'Or take a slow sip of water and notice it.'],
+  ];
+  let i = 0;
+  const draw = () => {
+    if (i >= steps.length) {
+      render(`${backFrom(calm, 'calmWorry')}
+        <h2>You’re here, right now.</h2>
+        <p class="response">The worry may still be there, but you are standing on solid ground in this moment. You can come back to this any time.</p>
+        <div class="card prayer"><p class="text">Thank You, Lord, that You are here in this room with me. Keep my heart and mind in Your peace. Amen.</p></div>
+        <button class="btn ghost" onclick="grounding(${calm})">Go through it again</button>`, night);
+      return;
+    }
+    const [n, what, help] = steps[i];
+    render(`${backFrom(calm, 'calmWorry')}
+      <span class="eyebrow">5-4-3-2-1 grounding · ${i + 1} of 5</span>
+      <div class="ground-num" aria-hidden="true">${n}</div>
+      <h2 style="text-align:center">Notice ${n} ${what}.</h2>
+      <p class="muted" style="text-align:center">${help}</p>
+      <button class="btn" id="nx">${i === steps.length - 1 ? 'Finish' : 'Next'}</button>`, night);
+    $('#nx').onclick = () => { i++; draw(); };
+  };
+  draw();
+}
+
+const GENTLE_STEPS = [
+  ['Drink a glass of water', 'Grief is tiring. Your body needs care too.'],
+  ['Step outside for five minutes', 'Fresh air, a little daylight, a short walk if you can.'],
+  ['Eat something small', 'Toast, fruit, soup. It doesn’t need to be a meal.'],
+  ['Text one person', 'Even “thinking of you” or “hard day today” is enough.'],
+  ['Open a window or a curtain', 'Let some light into the room.'],
+  ['Take a shower or wash your face', 'Small acts of care count.'],
+  ['Write one sentence', 'How you feel, or one thing about them.'],
+  ['Rest without guilt', 'Lying down is allowed. So is doing nothing today.'],
+];
+const HEAVY_ANSWERS = {
+  ok: 'Thank you for checking in with yourself. Heavy days may still come and go, and you can return here whenever they do.',
+  some: 'Heavy days mixed with lighter ones are a very common part of grief. Be gentle with yourself on the heavy ones, and notice the lighter ones without guilt.',
+  most: 'Thank you for being honest. Grief is heavy, and it is not something you have to fix. But when most days have felt this heavy for a couple of weeks or more, especially if sleeping, eating, or getting through the day has become very hard, it is worth talking with your doctor or a counselor. That is not a sign of weak faith. It is one more way of caring for yourself, and many people find it really helps.',
+};
+function heavyDays(calm = false) {
+  const today = new Date().toDateString();
+  const saved = loadJSON('swy-steps', {});
+  const done = saved.day === today ? saved.done || [] : [];
+  render(`${backFrom(calm)}
+    <span class="eyebrow">Heavy days</span>
+    <h2>One gentle step today</h2>
+    <p class="muted">When everything feels heavy, big plans can wait. Choose one small thing, only if you feel able. Doing none of them is okay too.</p>
+    <div class="options">${GENTLE_STEPS.map(([t, d], i) => `<label class="task"><input type="checkbox" data-i="${i}" ${done.includes(i) ? 'checked' : ''}><span><strong>${t}</strong><br><span class="muted small">${d}</span></span></label>`).join('')}</div>
+    <p id="well" class="saved-note" style="text-align:center" ${done.length ? '' : 'hidden'}>That counts. Well done.</p>
+    <div class="card"><span class="eyebrow">A gentle check-in</span>
+      <p>Over the last two weeks, how have most days felt?</p>
+      <div class="chips" id="hq">
+        <button class="chip" data-a="ok">Mostly okay</button>
+        <button class="chip" data-a="some">Some heavy, some lighter</button>
+        <button class="chip" data-a="most">Most days have felt heavy</button>
+      </div>
+      <div id="ha"></div></div>
+    <p class="note">This check-in is just for you. It isn’t a test or a diagnosis, and nothing is shared.</p>`, calm);
+  app.querySelectorAll('.task input').forEach(c => c.onchange = () => {
+    const now = [...app.querySelectorAll('.task input')].filter(x => x.checked).map(x => +x.dataset.i);
+    saveJSON('swy-steps', { day: today, done: now }); $('#well').hidden = !now.length;
+  });
+  app.querySelectorAll('#hq .chip').forEach(b => b.onclick = () => {
+    app.querySelectorAll('#hq .chip').forEach(x => x.setAttribute('aria-pressed', x === b));
+    const a = b.dataset.a;
+    $('#ha').innerHTML = `<p class="response" style="font-size:1.05rem;margin-top:14px">${HEAVY_ANSWERS[a]}</p>${a === 'most' ? `<div class="options" style="margin-top:12px">
+      <button onclick="support(${calm})">Reach out to someone I trust</button>
+      <button onclick="crisis(${calm})">Find a counselor or more support</button></div>` : ''}`;
+  });
 }
 
 function practical() {

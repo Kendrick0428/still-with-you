@@ -237,6 +237,24 @@ button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-c
 @media (max-width: 460px) { .tabbar { position: fixed; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); } }
 
 
+/* ---------- hard hours: sleep, worry, heavy days ---------- */
+.hours { display: flex; flex-direction: column; gap: 10px; }
+.hours button { display: flex; align-items: center; gap: 14px; text-align: left; background: var(--surface); border: 1px solid var(--hair); border-radius: 22px; padding: 14px 16px; color: var(--ink); transition: transform .15s ease; }
+.hours button:active { transform: scale(.98); }
+.hours .well { flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 50% 35%, var(--surface), var(--blue-soft)); }
+.hours svg { width: 22px; height: 22px; stroke: var(--blue); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.hours strong { display: block; font-weight: 600; }
+.hours small { display: block; font-size: .86rem; color: var(--ink-2); }
+.hours button:first-child { background: linear-gradient(100deg, var(--blue-soft), var(--surface)); }
+.breath-circle.paced { animation: none; transform: scale(.62); transition: transform 4s ease-in-out; }
+.breath-circle.paced > span { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.breath-circle.paced b { font-family: var(--body); font-style: normal; font-weight: 500; font-size: .95rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.slow blockquote span { opacity: 0; animation: fadeword 1.4s ease forwards; }
+@keyframes fadeword { to { opacity: 1; } }
+.ground-num { font-family: var(--display); font-size: 5rem; line-height: 1; color: var(--gold); text-align: center; margin-top: 12px; }
+.device.dim #app { filter: brightness(.55); transition: filter .6s ease; }
+
+@media (prefers-reduced-motion: reduce) { .slow blockquote span { animation: none; opacity: 1; } .breath-circle.paced { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .screen, .sky .sun, .breath-circle, .sky-mode.rising .sun { animation: none !important; } }
 
 /* ---------- Plus plans ---------- */
