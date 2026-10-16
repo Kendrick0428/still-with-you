@@ -1,5 +1,4 @@
 import "./landing.css";
-import WaitlistForm from "./waitlist-form";
 import AuthForward from "./auth-forward";
 
 const FEATURES = [
@@ -42,7 +41,7 @@ export default function Landing() {
           </p>
           <div className="l-ctas">
             <a className="l-btn" href="/app">Start for free</a>
-            <a className="l-btn ghost" href="#waitlist">Join the waitlist</a>
+            <a className="l-btn ghost" href="#pricing">See pricing</a>
           </div>
         </div>
       </header>
@@ -99,11 +98,14 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="l-section narrow" id="waitlist">
-        <p className="l-eyebrow dark">Early access</p>
-        <h2>Be the first to try the full app</h2>
-        <p className="l-muted">New features are on the way. Leave your email and we&rsquo;ll let you know when they&rsquo;re ready.</p>
-        <WaitlistForm />
+      <section className="l-section narrow" id="start">
+        <p className="l-eyebrow dark">Whenever you&rsquo;re ready</p>
+        <h2>Begin today, at your own pace</h2>
+        <p className="l-muted">Still With You is open now. It&rsquo;s free to begin, private by default, and here for you on the hard days and the quiet ones.</p>
+        <div className="l-ctas" style={{ justifyContent: "flex-start" }}>
+          <a className="l-btn" href="/app">Open the app</a>
+        </div>
+        <p className="l-small">On your phone, add it to your home screen to keep it close.</p>
       </section>
 
       <footer className="l-footer">
