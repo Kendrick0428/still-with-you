@@ -7,11 +7,22 @@ const FEATURES = [
   ["Prayer and Scripture", "Daily prayers written for grief, for when you miss them, can’t sleep, or are angry with God."],
   ["Remember them by name", "Grieving more than one person? Each of them has a place here, and the app speaks of them by name."],
   ["A wave just hit me", "For the song in the store or their handwriting on a card. A breath, a short prayer, and a place to keep the memory."],
+  ["Listen when reading is too much", "Morning, evening, and sleep prayers, Scripture, and guided breathing, read aloud slowly while you rest."],
+  ["Gentle guides for every season", "Holidays, anniversaries, belongings, returning to work, and guides for losing a spouse, parent, child, sibling, or friend. Open any of them, in any order."],
+  ["A keepsake of their life", "Turn the photos, stories, recipes, and sayings in your Memory Vault into a book you can print or have bound."],
   ["Practical and private", "Help with paperwork at your own pace, quiet hours, an app lock, and nothing shared unless you choose."],
 ];
 
 const FREE = ["“I’m having a hard day” mode", "Daily prayer and Scripture", "Heart check-ins", "Your private journal", "Crisis help, always"];
-const PLUS = ["A grief companion to talk with, day or night", "Your Memory Vault for photos, stories, and songs", "Audio prayers and Scripture", "Backup across your devices"];
+const PLUS = [
+  "A grief companion to talk with, day or night",
+  "Your Memory Vault for photos, stories, and songs",
+  "An audio library of prayers, Scripture, and sleep prayers, read aloud",
+  "Every Grief Journey guide, from holidays to returning to work",
+  "A keepsake memory book to save as a PDF or print",
+  "Gentle reminders before birthdays and anniversaries, only if you ask",
+  "Daily backups for 30 days and a full download of your memories",
+];
 
 export default function Landing() {
   return (
