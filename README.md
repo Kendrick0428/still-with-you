@@ -67,6 +67,14 @@ Photos, videos (up to 50 MB), voice recordings, stories, sayings, recipes, songs
 
 Adding memories is part of Plus, but anyone who saved memories can always open them, even after a plan ends. In hard-day mode, "Help me remember" shows one saved memory (or a gentle prompt) for everyone.
 
+## Audio library and Grief Journey
+
+The words for both live in `public/swy-content.js`, loaded the first time either is opened. The audio library has 24 tracks (morning, evening and sleep prayers, Scripture meditations, guided breathing, grief encouragement, short devotionals, "Get through today" and "The next five minutes"), read aloud by the device's own voice one line at a time with quiet pauses, while the line being read is highlighted. People can pick a voice, slow it down, and save favorites. Grief Journey has 18 guides that can be opened in any order; none are stages.
+
+Both are part of Plus, except "The next five minutes" (also offered in hard-day mode) and the guides "The first 7 days" and "When other people stop checking on you", which are free for everyone.
+
+To use real recordings (for example in the pastor's own voice): save each as an MP3 in `public/audio/` and add `file: 'name.mp3'` to that track in `public/swy-content.js`. The player then plays the recording, with a progress bar and 15-second skips, instead of the device voice.
+
 ## Grief companion
 
 A private conversation with Claude, written to listen first, avoid grief clichés and timelines, offer prayer and Scripture when it fits, and point to 988 when someone may be in danger. The app also shows a 988 card on its own when a message mentions self-harm, before any reply.

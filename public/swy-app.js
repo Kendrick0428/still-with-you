@@ -130,6 +130,10 @@ const ICONS = {
   calm: '<path d="M12 21c-4.5-2-7-5.5-7-9.5C5 7 8 4 12 3c4 1 7 4 7 8.5 0 4-2.5 7.5-7 9.5zM12 8v9"/>',
   step: '<path d="M7 19c-1.7 0-3-1.6-3-3.5S5.3 11 7 11s3 2.6 3 4.5S8.7 19 7 19zM17 13c-1.7 0-3-1.6-3-3.5S15.3 5 17 5s3 2.6 3 4.5S18.7 13 17 13z"/>',
   heart: '<path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8.5 14s1.3 2 3.5 2 3.5-2 3.5-2"/>',
+  listen: '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/>',
+  path: '<path d="M4 5.5C6.5 4 9.5 4 12 5.5 14.5 4 17.5 4 20 5.5V19c-2.5-1.5-5.5-1.5-8 0-2.5-1.5-5.5-1.5-8 0zM12 5.5V19"/>',
+  prev: '<path d="M11 7l-5 5 5 5M18 7l-5 5 5 5"/>',
+  next: '<path d="M13 7l5 5-5 5M6 7l5 5-5 5"/>',
 };
 const icon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>`;
 
@@ -154,6 +158,7 @@ function render(html, calm = false, opt = {}) {
   device.classList.toggle('rising', !!opt.rising);
   if (!opt.keepDim) device.classList.remove('dim');
   if (speaking) { try { speechSynthesis.cancel(); } catch (e) {} speaking = false; }
+  stopPlayer();
   tabs.hidden = sky || calm === true || !!opt.noTabs;
   tabs.innerHTML = TABS.map(([k, label, fn]) => `<button onclick="${fn.replace(/"/g, '&quot;')}" ${tab === k ? 'aria-current="page"' : ''}>${icon(k === 'today' ? 'sun' : k)}${label}</button>`).join('');
   app.innerHTML = `${calm === true ? '<div class="stars"></div>' : ''}<section class="screen ${opt.cls || ''}">${html}</section>`;
@@ -269,13 +274,29 @@ function setFocus(i) { profile.focus = i; save(); home(); }
 
 /* ---------- Home ---------- */
 const FEEL_C = { 'Peaceful': '#9cc3b0', 'Sad': '#8ea9c6', 'Lonely': '#a9a3c7', 'Angry': '#d49a86', 'Confused': '#c9b48a', 'Numb': '#b5b9bf', 'Anxious': '#dcb98a', 'Grateful': '#e3c27c', 'Overwhelmed': '#9b90b3', 'Hopeful': '#f0cd8c', 'I don\u2019t know': '#c8c1b4' };
+/* The device's most natural English voice, or the one chosen in the audio library. Novelty voices are never used. */
+const NOVELTY = /albert|bad news|bahh|bells|boing|bubbles|cellos|deranged|good news|hysterical|jester|junior|organ|princess|ralph|superstar|trinoids|whisper|wobble|zarvox|fred|kathy/i;
+const englishVoices = () => { try { return speechSynthesis.getVoices().filter(v => /^en[-_]/i.test(v.lang) && !NOVELTY.test(v.name)); } catch (e) { return []; } };
+function bestVoice() {
+  const en = englishVoices();
+  const chosen = settings.voice && en.find(v => v.voiceURI === settings.voice);
+  if (chosen) return chosen;
+  const score = (v) => (/premium|enhanced|natural|neural/i.test(v.name) ? 8 : 0) + (/samantha|ava|allison|susan|zoe|evan|nathan|joelle|noelle|serena|daniel|moira|karen|tessa|aria|jenny|google us english|google uk english female/i.test(v.name) ? 4 : 0) + (/en[-_]us/i.test(v.lang) ? 2 : 0) + (v.localService ? 1 : 0);
+  return en.sort((a, b) => score(b) - score(a))[0] || null;
+}
+try { speechSynthesis.getVoices(); } catch (e) {}
+const sentences = (t) => (String(t).match(/[^.!?;:]+[.!?;:]*["”’)]*\s*/g) || [String(t)]).map(x => x.trim()).filter(Boolean);
 function listen(btn, text, rate = .86, label = 'Listen') {
   try {
     const synth = window.speechSynthesis;
     if (speaking) { synth.cancel(); speaking = false; btn.innerHTML = `${icon('play')}${label}`; return; }
-    const u = new SpeechSynthesisUtterance(text); u.rate = rate; u.pitch = .95;
-    u.onend = () => { speaking = false; btn.innerHTML = `${icon('play')}${label}`; };
-    synth.speak(u); speaking = true; btn.innerHTML = `${icon('pause')}Pause`;
+    const lines = sentences(text), v = bestVoice();
+    lines.forEach((line, i) => {
+      const u = new SpeechSynthesisUtterance(line); u.rate = rate; u.pitch = .95; if (v) u.voice = v;
+      if (i === lines.length - 1) u.onend = () => { speaking = false; btn.innerHTML = `${icon('play')}${label}`; };
+      synth.speak(u);
+    });
+    speaking = true; btn.innerHTML = `${icon('pause')}Pause`;
   } catch (e) { btn.textContent = 'Audio comes in the full app'; }
 }
 function home() {
@@ -333,6 +354,14 @@ function home() {
           <button onclick="sleepCorner()"><span class="well">${icon('moon')}</span><span><strong>Can\u2019t sleep</strong><small>Bedtime prayers and a quiet night screen</small></span></button>
           <button onclick="calmWorry()"><span class="well">${icon('calm')}</span><span><strong>Calm my worry</strong><small>Breathing, grounding, and Scripture</small></span></button>
           <button onclick="heavyDays()"><span class="well">${icon('step')}</span><span><strong>Heavy days</strong><small>One gentle step for today</small></span></button>
+        </div>
+      </section>
+
+      <section class="sec">
+        <div class="sec-head"><h3>Listen and learn</h3></div>
+        <div class="hours learn">
+          <button onclick="audioLibrary()"><span class="well">${icon('listen')}</span><span><strong>Audio library${plusTag()}</strong><small>Prayers, Scripture, and sleep, read aloud to you</small></span></button>
+          <button onclick="journey()"><span class="well">${icon('path')}</span><span><strong>Grief Journey guides${plusTag()}</strong><small>Holidays, returning to work, grieving a spouse, and more</small></span></button>
         </div>
       </section>
 
@@ -405,6 +434,7 @@ function hardDay() {
       <button onclick="prayer(true)">Pray with me</button>
       <button onclick="scripture(true)">Give me a Scripture</button>
       <button onclick="breathe(true)">Help me breathe</button>
+      <button onclick="audioPlay('five-minutes', true)">Talk me through the next 5 minutes</button>
       <button onclick="sleepCorner(true)">I can\u2019t sleep</button>
       <button onclick="calmWorry(true)">Calm my worry</button>
       <button onclick="heavyDays(true)">One gentle step</button>
@@ -440,7 +470,7 @@ function prayer(calm = false) { if (calm !== true) _tab = 'pray';
     render(`${backTo(calm)}<span class="eyebrow">${cat}</span>
       <div class="card prayer"><p class="text">${esc(text)}</p></div>
       <button class="btn" id="again">Pray another prayer with me</button>
-      <p class="muted small" style="text-align:center">In the full app, you can listen, save, and share prayers across twelve categories.</p>`, calm);
+      ${calm ? '' : `<button class="btn ghost" onclick="audioLibrary()">Listen to prayers in the audio library</button>`}`, calm);
     $('#again').onclick = () => { i = (i + 1) % prayers.length; draw(); };
   };
   draw();
@@ -456,11 +486,11 @@ function scripture(calm = false) {
   };
   draw();
 }
-function journal() { _tab = 'journal';
+function journal(q) { _tab = 'journal';
   const prompts = ['What do you miss most today?', 'What is one memory that made you smile?', `What would you tell ${L()} if they were sitting beside you?`, 'What helped you make it through today?'];
   render(`<button class="back" onclick="home()">Home</button>
     <span class="eyebrow">Journal prompt</span>
-    <h2>${esc(prompts[day % prompts.length])}</h2>
+    <h2>${esc(typeof q === 'string' ? q : prompts[day % prompts.length])}</h2>
     <div class="field"><label for="jr" class="muted small" style="font-weight:600">Private to you. Nothing here is shared.</label>
     <textarea id="jr" rows="7" style="width:100%;font:inherit;padding:14px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink)" placeholder="Write as much or as little as you like…"></textarea></div>
     <button class="btn" id="sv">Save entry</button><p id="saved" class="muted small" hidden style="text-align:center">Saved in this sample only. The full app keeps a private journal with search and a calendar view.</p>`);
@@ -1219,12 +1249,197 @@ function letMeWrite() {
   };
 }
 
+/* ---------- Audio library and Grief Journey guides (Plus) ---------- */
+/* The words live in public/swy-content.js, loaded the first time either is opened. "The next five minutes" and two guides are free. */
+let contentLoad = null;
+function withContent(fn) {
+  if (window.SWY_CONTENT) return fn(window.SWY_CONTENT);
+  contentLoad ??= new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = '/swy-content.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+  contentLoad.then(() => fn(window.SWY_CONTENT), () => { contentLoad = null; render(`<button class="back" onclick="home()">Home</button><h2>We couldn’t open this just now</h2><p class="muted">Please check your connection and try again.</p>`); });
+}
+const plusTag = () => plusOpen() ? '' : ' <span class="vc-plus">Plus</span>';
+const locked = (x) => !x.free && !plusOpen();
+const toggleIn = (key, id) => { const l = settings[key] || []; settings[key] = l.includes(id) ? l.filter(x => x !== id) : [...l, id]; saveSettings(); return settings[key].includes(id); };
+const trackMins = (t) => {
+  const parts = t.parts(L()), words = parts.filter(x => typeof x === 'string').join(' ').split(/\s+/).length;
+  const secs = words / (150 * (t.rate || .86)) * 60 + parts.filter(x => typeof x === 'number').reduce((a, b) => a + b, 0);
+  return `${Math.max(1, Math.round(secs / 60))} min`;
+};
+
+let libFilter = 'all';
+function audioLibrary() { withContent(({ AUDIO_CATS, AUDIO }) => {
+  _tab = 'pray';
+  const favs = settings.audioFav || [];
+  const shown = libFilter === 'fav' ? AUDIO.filter(t => favs.includes(t.id)) : AUDIO;
+  const row = (t) => `<button class="track ${locked(t) ? 'locked' : ''}" onclick="audioPlay('${t.id}')"><span class="well">${icon('play')}</span>
+    <span class="tt"><strong>${esc(t.title)}${favs.includes(t.id) ? ' <span class="fav-dot" aria-label="Favorite">♥</span>' : ''}</strong><small>${esc(t.sub)}</small></span>
+    <span class="len">${locked(t) ? '<span class="vc-plus">Plus</span>' : trackMins(t)}</span></button>`;
+  render(`<button class="back" onclick="home()">Home</button>
+    <div class="plus-head"><span class="eyebrow">Audio library</span><h2>Listen when reading feels like too much</h2>
+    <p class="muted">Prayers, Scripture, and gentle words, read aloud slowly. Put your phone down, close your eyes, and let them keep you company.</p></div>
+    ${plusOpen() ? '' : `<div class="note-card"><p>The audio library is part of Still With You Plus. “The next five minutes” is free for everyone, any time you need it.</p><div class="row"><button class="tiny-btn" onclick="plansScreen('audio')">See Plus</button></div></div>`}
+    ${favs.length ? `<div class="chips" role="group" aria-label="Show"><button class="chip" aria-pressed="${libFilter === 'all'}" onclick="libFilter='all';audioLibrary()">Everything</button><button class="chip" aria-pressed="${libFilter === 'fav'}" onclick="libFilter='fav';audioLibrary()">My favorites</button></div>` : ''}
+    ${AUDIO_CATS.map(([k, label, sub]) => { const list = shown.filter(t => t.cat === k); return list.length ? `<section class="lib-cat"><div><h3>${esc(label)}</h3><p class="cat-sub">${esc(sub)}</p></div>${list.map(row).join('')}</section>` : ''; }).join('')}
+    <p class="note">Read aloud by your device’s own voice. <button class="btn link small" style="padding:0;display:inline" onclick="voicePicker()">Choose a different voice</button></p>`, false, { tab: 'pray' });
+}); }
+
+/* The player: speaks a track one line at a time, with quiet pauses between, and highlights the line being read.
+   A track with `file` plays that recording instead. */
+const player = { t: null, parts: [], i: 0, on: false, timer: null, u: null, audio: null, speed: 1 };
+function stopPlayer() {
+  if (!player.t) return;
+  player.on = false; clearTimeout(player.timer); player.u = null;
+  try { speechSynthesis.cancel(); } catch (e) {}
+  if (player.audio) { player.audio.pause(); player.audio = null; }
+  player.t = null;
+}
+function audioPlay(id, calm = false) { withContent(({ AUDIO, AUDIO_CATS }) => {
+  const t = AUDIO.find(x => x.id === id);
+  if (!t) return audioLibrary();
+  if (locked(t)) return plansScreen('audio');
+  const parts = t.parts(L()), lines = parts.map((p, i) => [p, i]).filter(([p]) => typeof p === 'string');
+  const cat = (AUDIO_CATS.find(c => c[0] === t.cat) || [])[1] || '';
+  const fav = (settings.audioFav || []).includes(t.id);
+  render(`${calm ? backTo(true) : `<button class="back" onclick="audioLibrary()">Audio library</button>`}
+    <div class="player">
+      <div class="orb" id="orb" aria-hidden="true"></div>
+      <span class="eyebrow">${esc(cat)}</span>
+      <h2>${esc(t.title)}</h2>
+      <p class="muted">${esc(t.sub)}${t.file ? '' : ` · ${trackMins(t)}`}</p>
+      ${t.file ? '<div class="prog"><input type="range" id="seek" min="0" max="1000" value="0" aria-label="Position"><div class="times"><span id="tcur">0:00</span><span id="tdur"></span></div></div>' : ''}
+      <div class="ctrls">
+        <button id="back1" aria-label="${t.file ? 'Back 15 seconds' : 'Previous line'}">${icon('prev')}</button>
+        <button class="big" id="pp" aria-label="Play">${icon('play')}</button>
+        <button id="fwd1" aria-label="${t.file ? 'Forward 15 seconds' : 'Next line'}">${icon('next')}</button>
+      </div>
+      <div class="chips center" role="group" aria-label="Speed"><button class="chip" data-sp=".85">Slower</button><button class="chip" data-sp="1">Normal</button></div>
+      <div class="row center"><button class="tiny-btn" id="fav" aria-pressed="${fav}">${fav ? '♥ Favorite' : 'Add to favorites'}</button>
+        ${t.night ? `<button class="tiny-btn" id="dim">${device.classList.contains('dim') ? 'Brighten the screen' : 'Dim the screen'}</button>` : ''}</div>
+    </div>
+    ${t.file ? '' : `<div class="readalong" id="ra">${lines.map(([p, i]) => `<p data-i="${i}">${esc(p)}</p>`).join('')}</div>`}
+    ${t.id === 'five-minutes' ? CARE_CARD : ''}`, calm || !!t.night, { keepDim: true, noTabs: calm });
+  Object.assign(player, { t, parts, i: 0, on: false, audio: null });
+  const pp = $('#pp'), orb = $('#orb');
+  const ui = () => {
+    pp.innerHTML = icon(player.on ? 'pause' : 'play'); pp.setAttribute('aria-label', player.on ? 'Pause' : 'Play');
+    orb.classList.toggle('on', player.on);
+    app.querySelectorAll('#ra p').forEach(el => {
+      const now = +el.dataset.i === player.i || (+el.dataset.i < player.i && typeof parts[player.i] === 'number' && +el.dataset.i === player.i - 1);
+      if (now && !el.classList.contains('now') && player.on) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el.classList.toggle('now', now);
+    });
+  };
+  const speedChips = () => app.querySelectorAll('[data-sp]').forEach(c => c.setAttribute('aria-pressed', +c.dataset.sp === player.speed));
+  speedChips();
+  const finish = () => {
+    player.on = false; player.i = 0; ui();
+    app.querySelectorAll('#ra p').forEach(el => el.classList.remove('now'));
+    pp.setAttribute('aria-label', 'Play again');
+  };
+  const step = () => {
+    if (!player.on || player.t !== t) return;
+    if (player.i >= parts.length) return finish();
+    ui();
+    const p = parts[player.i];
+    if (typeof p === 'number') { player.timer = setTimeout(() => { player.i++; step(); }, p * 1000 / player.speed); return; }
+    const u = new SpeechSynthesisUtterance(p), v = bestVoice();
+    u.rate = (t.rate || .86) * player.speed; u.pitch = .95; if (v) u.voice = v;
+    u.onend = () => { if (player.u !== u) return; player.i++; step(); };
+    player.u = u;
+    try { speechSynthesis.speak(u); } catch (e) { $('#pp').outerHTML = '<p class="muted small">This browser can’t read aloud. Try Safari or Chrome.</p>'; }
+  };
+  const halt = () => { player.on = false; clearTimeout(player.timer); player.u = null; try { speechSynthesis.cancel(); } catch (e) {} ui(); };
+  const jump = (dir) => {
+    let j = player.i + dir;
+    while (j > 0 && j < parts.length && typeof parts[j] === 'number') j += dir;
+    player.i = Math.min(Math.max(0, j), parts.length - 1);
+    if (player.on) { const was = player.on; halt(); player.on = was; step(); } else ui();
+  };
+  if (t.file) {
+    const a = player.audio = new Audio(`/audio/${t.file}`), seek = $('#seek'), mmss = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
+    a.preload = 'metadata';
+    a.onloadedmetadata = () => { $('#tdur').textContent = mmss(a.duration); };
+    a.ontimeupdate = () => { if (a.duration) seek.value = a.currentTime / a.duration * 1000; $('#tcur').textContent = mmss(a.currentTime); };
+    a.onended = () => { player.on = false; ui(); };
+    seek.oninput = () => { if (a.duration) a.currentTime = seek.value / 1000 * a.duration; };
+    pp.onclick = () => { if (player.on) { a.pause(); player.on = false; } else { a.playbackRate = player.speed; a.play(); player.on = true; } ui(); };
+    $('#back1').onclick = () => { a.currentTime = Math.max(0, a.currentTime - 15); };
+    $('#fwd1').onclick = () => { a.currentTime = Math.min(a.duration || 0, a.currentTime + 15); };
+  } else {
+    pp.onclick = () => { if (player.on) return halt(); try { speechSynthesis.cancel(); } catch (e) {} player.on = true; step(); };
+    $('#back1').onclick = () => jump(-1);
+    $('#fwd1').onclick = () => jump(1);
+    app.querySelectorAll('#ra p').forEach(el => el.onclick = () => { player.i = +el.dataset.i; if (player.on) { halt(); player.on = true; step(); } else ui(); });
+  }
+  app.querySelectorAll('[data-sp]').forEach(c => c.onclick = () => {
+    player.speed = +c.dataset.sp; speedChips();
+    if (player.audio) player.audio.playbackRate = player.speed;
+    else if (player.on) { halt(); player.on = true; step(); }
+  });
+  $('#fav').onclick = function () { const on = toggleIn('audioFav', t.id); this.setAttribute('aria-pressed', on); this.textContent = on ? '♥ Favorite' : 'Add to favorites'; };
+  const dim = $('#dim'); if (dim) dim.onclick = function () { const on = device.classList.toggle('dim'); this.textContent = on ? 'Brighten the screen' : 'Dim the screen'; };
+}); }
+
+function voicePicker() {
+  const vs = englishVoices(), cur = bestVoice();
+  const sample = 'The LORD is nigh unto them that are of a broken heart.';
+  render(`<button class="back" onclick="audioLibrary()">Audio library</button>
+    <span class="eyebrow">Reading voice</span><h2>Choose a voice that feels calm to you</h2>
+    <p class="muted">These voices come with your phone or computer. Tap one to hear it.</p>
+    ${vs.length ? `<div class="options">${vs.map((v, i) => `<button data-v="${i}" aria-pressed="${cur && v.voiceURI === cur.voiceURI}"><span class="t">${esc(v.name.replace(/\s*\(.*\)$/, ''))}<span class="muted small">${esc(v.lang)}${cur && v.voiceURI === cur.voiceURI ? ' · Chosen' : ''}</span></span></button>`).join('')}</div>`
+      : '<p class="muted">This browser doesn’t offer any voices. Try Safari or Chrome.</p>'}
+    <p class="note">On iPhone, you can download more natural voices in Settings → Accessibility → Spoken Content → Voices → English. Look for voices marked Enhanced or Premium.</p>`, false, { tab: 'pray' });
+  app.querySelectorAll('[data-v]').forEach(b => b.onclick = () => {
+    const v = vs[+b.dataset.v]; settings.voice = v.voiceURI; saveSettings();
+    try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(sample); u.voice = v; u.rate = .86; speechSynthesis.speak(u); } catch (e) {}
+    app.querySelectorAll('[data-v]').forEach(x => { const on = x === b; x.setAttribute('aria-pressed', on); x.querySelector('.muted').textContent = vs[+x.dataset.v].lang + (on ? ' · Chosen' : ''); });
+  });
+}
+
+/* Grief Journey: guides anyone can open in any order. Nothing here is a stage, and nothing is marked complete. */
+function journey() { withContent(({ GUIDE_GROUPS, GUIDES }) => {
+  _tab = 'today';
+  const rel = new Set(profile.people.map(p => p.relation));
+  const mine = GUIDES.filter(g => g.relation && rel.has(g.relation));
+  const row = (g) => `<button onclick="guide('${g.id}')"><span class="t"><span>${esc(g.title)}${locked(g) ? ' <span class="vc-plus">Plus</span>' : ''}</span><span class="muted small">${esc(g.sub)}</span></span></button>`;
+  render(`<button class="back" onclick="home()">Home</button>
+    <div class="plus-head"><span class="eyebrow">Grief Journey</span><h2>Gentle guides for whatever you’re facing</h2>
+    <p class="muted">Open any guide, in any order, whenever you need it. These are not steps to finish, and there is no timeline for grief.</p></div>
+    ${plusOpen() ? '' : `<div class="note-card"><p>The full set of guides is part of Still With You Plus. “The first 7 days” and “When other people stop checking on you” are free for everyone.</p><div class="row"><button class="tiny-btn" onclick="plansScreen('journey')">See Plus</button></div></div>`}
+    ${mine.length ? `<section class="lib-cat"><h3>For you</h3><div class="options">${mine.map(row).join('')}</div></section>` : ''}
+    ${GUIDE_GROUPS.map(([k, label]) => `<section class="lib-cat"><h3>${esc(label)}</h3><div class="options">${GUIDES.filter(g => g.group === k).map(row).join('')}</div></section>`).join('')}
+    ${DISCLAIMER}`);
+}); }
+function guide(id) { withContent(({ GUIDE_GROUPS, GUIDES }) => {
+  const g = GUIDES.find(x => x.id === id);
+  if (!g) return journey();
+  if (locked(g)) return plansScreen('journey');
+  const group = (GUIDE_GROUPS.find(x => x[0] === g.group) || [])[1] || '';
+  const words = [g.title, g.intro, ...g.sections.flat(), g.verse[0], g.verse[1].replace(/\s*\(KJV\)/, ''), 'Let’s pray.', g.prayer].join('. ').replace(/\.\.+/g, '.');
+  render(`<button class="back" onclick="journey()">Grief Journey</button>
+    <span class="eyebrow">${esc(group)}</span>
+    <h2>${esc(g.title)}</h2>
+    <p class="lead-in">${esc(g.intro)}</p>
+    <div class="row"><button class="play" id="lis">${icon('play')}Listen to this guide</button></div>
+    ${g.sections.map(([h, t]) => `<div class="guide-sec"><h3>${esc(h)}</h3><p>${esc(t)}</p></div>`).join('')}
+    <div class="card verse"><blockquote>“${esc(g.verse[0])}”</blockquote><cite>${esc(g.verse[1])}</cite></div>
+    <div class="card prayer"><span class="eyebrow">A prayer</span><p class="text">${esc(g.prayer)}</p></div>
+    <div class="note-card"><span class="eyebrow">A question to sit with</span><p class="motd-prompt">${esc(g.question)}</p>
+      <div class="row"><button class="tiny-btn" id="wr">Write about this</button></div></div>
+    ${g.link ? `<button class="btn ghost" onclick="${g.link[1]}">${esc(g.link[0])}</button>` : ''}
+    <p class="note">This guide is general encouragement, not counseling. If grief feels like too much to carry, a grief counselor, your pastor, or your doctor can help. If you are in danger, call or text <strong>988</strong>.</p>`);
+  $('#lis').onclick = function () { listen(this, words, .86, 'Listen to this guide'); };
+  $('#wr').onclick = () => journal(g.question);
+}); }
+
 /* ---------- Still With You Plus ---------- */
 let chosenPlan = 'year';
 const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 function plansScreen(feature = '') {
   const lead = feature === 'companion' ? 'Talk about your grief any time, day or night.'
     : feature === 'vault' ? `Keep every memory of ${esc(L())} in one safe place.`
+    : feature === 'audio' ? 'Prayers and Scripture, read aloud, for when reading feels like too much.'
+    : feature === 'journey' ? 'Gentle guides for every part of grief, whenever you need them.'
     : 'More room to remember, and more ways to be held.';
   const trial = !plan.everSubscribed;
   const back = profile.people.length ? 'home()' : 'welcome()';
@@ -1234,7 +1449,8 @@ function plansScreen(feature = '') {
     <ul class="plus-list sec">
       <li><span><strong>A grief companion to talk with</strong><br><span class="muted small">Say what’s on your heart and receive a caring, faith-centered response.</span></span></li>
       <li><span><strong>Your Memory Vault</strong><br><span class="muted small">Photos, stories, recipes, songs, and letters, kept private and safe.</span></span></li>
-      <li><span><strong>Audio prayers and scripture</strong><br><span class="muted small">Listen when reading feels like too much.</span></span></li>
+      <li><span><strong>The audio library</strong><br><span class="muted small">Morning, evening, and sleep prayers, Scripture meditations, guided breathing, and short devotionals, read aloud.</span></span></li>
+      <li><span><strong>Every Grief Journey guide</strong><br><span class="muted small">Holidays, anniversaries, returning to work, belongings, and guides for grieving a spouse, parent, child, sibling, or friend.</span></span></li>
       <li><span><strong>Backup across your devices</strong><br><span class="muted small">Nothing you’ve saved is lost if you lose your phone.</span></span></li>
     </ul>
     <div class="plans" role="radiogroup" aria-label="Choose a plan">
@@ -1245,7 +1461,7 @@ function plansScreen(feature = '') {
     <button class="btn" id="pgo">${!signedIn() ? 'Create a free account first' : trial ? 'Start my free week' : 'Continue'}</button>
     ${!signedIn() ? `<button class="btn link small" onclick="accountScreen('signin')">I already have an account</button>` : ''}
     <div class="free-forever"><span class="eyebrow">Always free</span>
-      <p class="muted small" style="margin-top:6px">Hard-day mode, the daily prayer, journaling, and crisis help are free for everyone, forever. No one should have to pay for comfort on their hardest day.</p></div>
+      <p class="muted small" style="margin-top:6px">Hard-day mode, the daily prayer, journaling, “The next five minutes,” and crisis help are free for everyone, forever. No one should have to pay for comfort on their hardest day.</p></div>
     <p class="muted small">Payments are handled securely by Stripe. Still With You never sees your card number. Plus renews automatically until you cancel. See our <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</p>`);
   const pick = (k) => { chosenPlan = k; document.querySelectorAll('.plan').forEach(b => { const on = b.dataset.plan === k; b.setAttribute('aria-pressed', on); b.setAttribute('aria-checked', on); }); };
   document.querySelectorAll('.plan').forEach(b => b.onclick = () => pick(b.dataset.plan));
