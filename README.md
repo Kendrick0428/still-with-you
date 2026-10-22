@@ -75,6 +75,14 @@ Both are part of Plus, except "The next five minutes" (also offered in hard-day 
 
 To use real recordings (for example in the pastor's own voice): save each as an MP3 in `public/audio/` and add `file: 'name.mp3'` to that track in `public/swy-content.js`. The player then plays the recording, with a progress bar and 15-second skips, instead of the device voice.
 
+## Memory book
+
+From the Memory Vault, "Make a keepsake book" gathers memories (for one person or everyone, all or only favorites; letters only if chosen) into a book with a cover, one page per memory with its photo, and a closing Scripture. "Save as PDF or print" uses the browser's print, with print styles that give each memory its own page. Part of Plus.
+
+## Important dates
+
+"Important dates" (home screen, under More ways we can help) keeps birthdays, anniversaries of a passing, wedding anniversaries, traditions, and holidays (Mother's Day, Father's Day, Thanksgiving, Christmas, worked out each year). Keeping the list is free. Gentle reminders are part of Plus, never turned on automatically, and chosen one date at a time (the day before, 3 days before, or a week before). When one is due, the home screen shows a gentle note with "Help me plan", which offers ways to honor the day, a prayer, and links to support. "Add to my phone's calendar" posts the date to `/api/calendar`, which returns a yearly calendar event with an alert before it and stores nothing. Dates sync with the account like everything else (`dates` in the snapshot).
+
 ## Grief companion
 
 A private conversation with Claude, written to listen first, avoid grief clichés and timelines, offer prayer and Scripture when it fits, and point to 988 when someone may be in danger. The app also shows a 988 card on its own when a message mentions self-harm, before any reply.

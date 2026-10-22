@@ -54,7 +54,7 @@ async function refreshPlan() {
 const plusOpen = () => !plansOn() || isPlus();
 const plusOnly = (open, feature) => plusOpen() ? open() : plansScreen(feature);
 
-const snapshot = () => ({ v: 1, profile, settings: { ...settings, pin: '' }, tasks: loadJSON('swy-tasks', {}), vault: loadJSON('swy-vault', []) });
+const snapshot = () => ({ v: 1, profile, settings: { ...settings, pin: '' }, tasks: loadJSON('swy-tasks', {}), vault: loadJSON('swy-vault', []), dates: loadJSON('swy-dates', []) });
 let pushTimer = null;
 function queueSync() {
   if (!signedIn()) return;
@@ -66,6 +66,7 @@ function adopt(remote) {
   if (remote.settings) { settings = { ...settings, ...remote.settings, pin: settings.pin }; try { localStorage.setItem('swy-settings', JSON.stringify(settings)); } catch (e) {} }
   if (remote.tasks) { try { localStorage.setItem('swy-tasks', JSON.stringify(remote.tasks)); } catch (e) {} }
   if (remote.vault) { try { localStorage.setItem('swy-vault', JSON.stringify(remote.vault)); } catch (e) {} }
+  if (remote.dates) { try { localStorage.setItem('swy-dates', JSON.stringify(remote.dates)); } catch (e) {} }
 }
 /* After signing in: the account's saved copy wins if it has anyone in it; otherwise this device's entries move into the account. */
 async function syncAfterSignIn() {
@@ -318,6 +319,8 @@ function home() {
       ${profile.people.length > 1 ? `<div class="focus"><span class="eyebrow">Today I\u2019m thinking of</span>
         <div class="chips"><button class="chip" aria-pressed="${profile.focus < 0}" onclick="setFocus(-1)">All of them</button>${profile.people.map((p, i) => `<button class="chip" aria-pressed="${profile.focus === i}" onclick="setFocus(${i})">${esc(p.name)}</button>`).join('')}</div></div>` : ''}
 
+      ${dateCards()}
+
       ${acct() && !signedIn() && !settings.acctDismissed ? `<div class="note-card"><span class="eyebrow">Keep everything safe</span>
         <p>Create a free account so ${esc(L())}’s place here, your check-ins, and your notes are kept safe and with you on any device.</p>
         <div class="row"><button class="play" style="padding-left:16px" onclick="accountScreen('signup')">Create a free account</button><button class="tiny-btn" onclick="settings.acctDismissed=true;saveSettings();home()">Not now</button></div></div>` : ''}
@@ -387,6 +390,7 @@ function home() {
           <button onclick="practical()"><span class="t">Practical help after a death<span class="muted small">Paperwork, accounts, and belongings, at your pace</span></span></button>
           <button onclick="kidsGrief()"><span class="t">Helping children grieve<span class="muted small">For parents and caregivers who are grieving too</span></span></button>
           <button onclick="prayerRequest()"><span class="t">Ask my church to pray<span class="muted small">Only sent when you choose</span></span></button>
+          <button onclick="datesScreen()"><span class="t">Important dates<span class="muted small">Birthdays, anniversaries, and holidays, with gentle reminders if you want them</span></span></button>
           <button onclick="settingsScreen()"><span class="t">Privacy, lock, and quiet hours<span class="muted small">${settings.pin ? 'App lock is on' : 'App lock is off'}${settings.quiet ? ` \u00b7 Quiet ${settings.quietFrom}\u2013${settings.quietTo}` : ''}</span></span></button>
         </div>
       </section>
@@ -821,8 +825,8 @@ function settingsScreen() {
       <div class="row"><div class="field"><label for="qf" class="small">From</label><input id="qf" type="time" value="${settings.quietFrom}"></div><div class="field"><label for="qt" class="small">To</label><input id="qt" type="time" value="${settings.quietTo}"></div></div>
     </div>
     <div class="card"><strong>Important date reminders</strong>
-      <label class="task"><input type="checkbox" id="dr" ${settings.dateReminders ? 'checked' : ''}><span>Gently let me know before birthdays and anniversaries</span></label>
-      <p class="muted small">Off unless you turn it on.</p>
+      <p class="muted small">Off unless you turn them on, one date at a time.</p>
+      <button class="tiny-btn" style="align-self:flex-start" onclick="datesScreen()">Open important dates</button>
     </div>
     <p class="muted small"><a href="/privacy" target="_blank">Privacy Policy</a> · <a href="/terms" target="_blank">Terms of Service</a></p>`);
   const pman = $('#pman'), pchk = $('#pchk');
@@ -839,7 +843,7 @@ function settingsScreen() {
   if (on) on.onclick = () => { const v = $('#pin').value; if (/^\d{4}$/.test(v)) { settings.pin = v; saveSettings(); settingsScreen(); } else $('#pin').focus(); };
   if (off) off.onclick = () => { settings.pin = ''; saveSettings(); settingsScreen(); };
   const bind = (id, key, prop = 'checked') => { $(id).onchange = (e) => { settings[key] = e.target[prop]; saveSettings(); }; };
-  bind('#bk', 'backup'); bind('#qh', 'quiet'); bind('#qf', 'quietFrom', 'value'); bind('#qt', 'quietTo', 'value'); bind('#dr', 'dateReminders');
+  bind('#bk', 'backup'); bind('#qh', 'quiet'); bind('#qf', 'quietFrom', 'value'); bind('#qt', 'quietTo', 'value');
   $('#cp').onclick = async () => {
     const data = JSON.stringify({ profile, settings: { ...settings, pin: undefined } }, null, 2);
     try { await navigator.clipboard.writeText(data); $('#cpok').hidden = false; } catch (e) { $('#cpok').textContent = 'Copy isn’t available here.'; $('#cpok').hidden = false; }
@@ -1005,6 +1009,7 @@ function vaultScreen() {
   render(`<button class="back" onclick="home()">Home</button>
     <div class="plus-head"><span class="eyebrow">Memory Vault</span><h2>Remembering <span class="name">${esc(L())}</span></h2>
     <p class="muted">Photos, stories, and the little things you never want to forget. Private to you.</p></div>
+    ${all.length ? `<button class="vault-card book-card" onclick="bookSetup()"><span class="well">${icon('path')}</span><span class="vc-t"><span class="eyebrow">Memory book${plusTag()}</span><strong>Make a keepsake book</strong><small>Save your memories as a PDF, or print them</small></span><span class="vc-go" aria-hidden="true">\u203a</span></button>` : ''}
     ${plusOpen() ? `<button class="btn" onclick="addPicker()">Add a memory</button>`
       : `<div class="note-card"><p>Your memories are always yours to keep and look back on. Adding new ones is part of Still With You Plus.</p><div class="row"><button class="tiny-btn" onclick="plansScreen('vault')">See Plus</button></div></div>`}
     ${all.length ? `<div class="chips" role="group" aria-label="Show">${FILTERS.map(([k, l]) => `<button class="chip" aria-pressed="${vaultFilter === k}" onclick="vaultFilter='${k}';vaultScreen()">${l}</button>`).join('')}</div>` : ''}
@@ -1249,6 +1254,185 @@ function letMeWrite() {
   };
 }
 
+/* ---------- Important dates and gentle reminders ---------- */
+/* Anyone can keep a list of dates that matter. Reminders before them are part of Plus, off by default, and turned on one date at a time. */
+const datesList = () => loadJSON('swy-dates', []);
+const saveDates = (d) => saveJSON('swy-dates', d);
+const HOLIDAYS = {
+  mothers: ['Mother’s Day', (y) => nthWeekday(y, 4, 0, 2)],
+  fathers: ['Father’s Day', (y) => nthWeekday(y, 5, 0, 3)],
+  thanksgiving: ['Thanksgiving', (y) => nthWeekday(y, 10, 4, 4)],
+  christmas: ['Christmas', (y) => new Date(y, 11, 25)],
+};
+function nthWeekday(y, m, wd, n) { const d = new Date(y, m, 1); d.setDate(1 + ((wd - d.getDay() + 7) % 7) + (n - 1) * 7); return d; }
+const midnight = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+/* The next time this date comes around (today counts). */
+function nextOn(x) {
+  const today = midnight(new Date());
+  const on = (y) => {
+    if (x.rule) return HOLIDAYS[x.rule][1](y);
+    const [, m, d] = x.date.split('-').map(Number);
+    const last = new Date(y, m, 0).getDate();
+    return new Date(y, m - 1, Math.min(d, last));
+  };
+  const t = on(today.getFullYear());
+  return t >= today ? t : on(today.getFullYear() + 1);
+}
+const daysUntil = (x) => Math.round((nextOn(x) - midnight(new Date())) / 864e5);
+const whenText = (x) => { const n = daysUntil(x); return n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : `In ${n} days`; };
+const dayName = (d) => d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+const BEFORE = [[1, 'The day before'], [3, '3 days before'], [7, 'A week before']];
+
+/* A gentle card on the home screen in the days before a date the person asked to be reminded of. */
+function dateCards() {
+  if (!plusOpen()) return '';
+  const yr = new Date().getFullYear();
+  return datesList().filter(x => x.remind && daysUntil(x) <= (x.before || 3) && x.dismissed !== `${yr}-${nextOn(x).getMonth()}`).slice(0, 2).map(x => {
+    const n = daysUntil(x), who = x.who || L();
+    return `<div class="note-card date-card"><span class="eyebrow">${n === 0 ? 'Today' : 'Coming up'} · ${esc(x.label)}</span>
+      <p>${n === 0 ? `Today is ${esc(x.label.charAt(0).toLowerCase() + x.label.slice(1))}. We’re thinking of you, and of ${esc(who)}. There’s no right way to spend this day.`
+        : `${esc(x.label)} is ${n === 1 ? 'tomorrow' : `coming up on ${nextOn(x).toLocaleDateString(undefined, { weekday: 'long' })}`}. These days can bring many emotions. Would you like help planning how you want to honor ${esc(who)}?`}</p>
+      <div class="row"><button class="tiny-btn" onclick="honorPlan('${x.id}')">${n === 0 ? 'Ways to get through today' : 'Help me plan'}</button><button class="tiny-btn" onclick="dismissDate('${x.id}')">Not now</button></div></div>`;
+  }).join('');
+}
+function dismissDate(id) { saveDates(datesList().map(x => x.id === id ? { ...x, dismissed: `${new Date().getFullYear()}-${nextOn(x).getMonth()}` } : x)); home(); }
+
+function datesScreen() {
+  const list = datesList().sort((a, b) => daysUntil(a) - daysUntil(b));
+  const have = new Set(list.map(x => x.rule || x.date + x.label));
+  const sugg = [
+    ...profile.people.filter(p => p.passed).map(p => ({ label: `The anniversary of ${p.name}’s passing`, date: p.passed, who: p.name })),
+    ...Object.entries(HOLIDAYS).map(([rule, [label]]) => ({ label, rule, who: '' })),
+  ].filter(x => !have.has(x.rule || x.date + x.label));
+  render(`<button class="back" onclick="home()">Home</button>
+    <div class="plus-head"><span class="eyebrow">Important dates</span><h2>Days that matter</h2>
+    <p class="muted">Birthdays, anniversaries, and holidays can bring a wave of grief, sometimes for days before. Keep them here, and choose if you’d like a gentle heads-up before any of them.</p></div>
+    ${list.length ? `<div class="dates">${list.map(x => `<div class="date-row">
+        <button class="dr-main" onclick="dateEdit('${x.id}')"><span class="dr-day"><b>${nextOn(x).getDate()}</b>${nextOn(x).toLocaleDateString(undefined, { month: 'short' })}</span>
+          <span class="tt"><strong>${esc(x.label)}</strong><small>${whenText(x)} · ${dayName(nextOn(x))}</small>
+          ${x.remind && plusOpen() ? `<small class="dr-on">Gentle reminder ${BEFORE.find(b => b[0] === (x.before || 3))[1].toLowerCase()}</small>` : ''}</span></button></div>`).join('')}</div>`
+      : '<p class="muted">No dates saved yet.</p>'}
+    <button class="btn" onclick="dateEdit()">Add a date</button>
+    ${sugg.length ? `<section class="lib-cat"><h3>You might want to add</h3><div class="chips">${sugg.map((x, i) => `<button class="chip" data-sg="${i}">+ ${esc(x.label)}</button>`).join('')}</div></section>` : ''}
+    <p class="note">Reminders are never turned on for you. Nothing is sent to anyone, and you can turn any reminder off at any time.</p>`);
+  app.querySelectorAll('[data-sg]').forEach(b => b.onclick = () => {
+    const x = sugg[+b.dataset.sg];
+    saveDates([...datesList(), { id: newId(), label: x.label, date: x.date || '', rule: x.rule || '', who: x.who, remind: false, before: 3 }]);
+    datesScreen();
+  });
+}
+function dateEdit(id) {
+  const old = id ? datesList().find(x => x.id === id) : null;
+  const x = old ? { ...old } : { id: newId(), label: '', date: '', rule: '', who: focusName() || (profile.people.length === 1 ? profile.people[0].name : ''), remind: false, before: 3 };
+  const kinds = (n) => [`${n}’s birthday`, `The anniversary of ${n}’s passing`, 'Our wedding anniversary', 'A family tradition'];
+  render(`<button class="back" onclick="datesScreen()">Important dates</button>
+    <span class="eyebrow">${old ? 'Edit date' : 'Add a date'}</span><h2>${old ? esc(x.label) : 'What day is it?'}</h2>
+    ${profile.people.length > 1 ? `<div><p class="muted small" style="margin-bottom:8px">Who is it about?</p><div class="chips" id="who">${profile.people.map(p => `<button class="chip" data-w="${esc(p.name)}" aria-pressed="${x.who === p.name}">${esc(p.name)}</button>`).join('')}<button class="chip" data-w="" aria-pressed="${!x.who}">Everyone</button></div></div>` : ''}
+    ${x.rule ? '' : `<div class="chips" id="kinds"></div>
+    <div class="field"><label for="dl">Name of the day</label><input id="dl" value="${esc(x.label)}" placeholder="Michael’s birthday"></div>
+    <div class="field"><label for="dd">Date</label><input id="dd" type="date" value="${esc(x.date)}"></div>`}
+    <div class="card"><strong>Gentle reminder${plusTag()}</strong>
+      <label class="task"><input type="checkbox" id="rm" ${x.remind ? 'checked' : ''}><span>Let me know before this day, so I can plan how to honor it</span></label>
+      <div class="chips" id="bf" ${x.remind ? '' : 'hidden'}>${BEFORE.map(([d, l]) => `<button class="chip" data-b="${d}" aria-pressed="${(x.before || 3) === d}">${l}</button>`).join('')}</div>
+      <p class="muted small">You’ll see a gentle note in the app. You can also add it to your phone’s calendar for a notification.</p>
+      <button class="tiny-btn" id="cal" style="align-self:flex-start">Add to my phone’s calendar</button></div>
+    <p id="dmsg" class="muted" role="status" hidden></p>
+    <button class="btn" id="dsave">Save</button>
+    ${old ? '<button class="btn link" id="ddel">Remove this date</button>' : ''}`);
+  const msg = (t) => { const m = $('#dmsg'); m.hidden = false; m.textContent = t; };
+  const drawKinds = () => { const k = $('#kinds'); if (!k) return; k.innerHTML = kinds(x.who || L()).map(t => `<button class="chip" type="button">${esc(t)}</button>`).join(''); k.querySelectorAll('.chip').forEach(c => c.onclick = () => { $('#dl').value = c.textContent; }); };
+  drawKinds();
+  app.querySelectorAll('#who .chip').forEach(c => c.onclick = () => { x.who = c.dataset.w; app.querySelectorAll('#who .chip').forEach(o => o.setAttribute('aria-pressed', o === c)); drawKinds(); });
+  $('#rm').onchange = (e) => { if (e.target.checked && !plusOpen()) { e.target.checked = false; return plansScreen('dates'); } x.remind = e.target.checked; $('#bf').hidden = !x.remind; };
+  app.querySelectorAll('[data-b]').forEach(c => c.onclick = () => { x.before = +c.dataset.b; app.querySelectorAll('[data-b]').forEach(o => o.setAttribute('aria-pressed', o === c)); });
+  const read = () => { if (!x.rule) { x.label = $('#dl').value.trim(); x.date = $('#dd').value; } return x.label && (x.rule || x.date) ? true : (msg(!x.label ? 'Give the day a name first.' : 'Choose the date first.'), false); };
+  $('#cal').onclick = () => { if (!plusOpen()) return plansScreen('dates'); if (read()) calendarFile(x); };
+  $('#dsave').onclick = () => { if (!read()) return; saveDates(old ? datesList().map(d => d.id === x.id ? x : d) : [...datesList(), x]); datesScreen(); };
+  const del = $('#ddel'); if (del) del.onclick = () => { saveDates(datesList().filter(d => d.id !== x.id)); datesScreen(); };
+}
+/* Hands the phone a calendar event (repeating each year) with an alert before it. The server builds the file and keeps nothing. */
+function calendarFile(x) {
+  const d = nextOn(x), f = document.createElement('form');
+  f.method = 'POST'; f.action = '/api/calendar'; f.target = '_blank';
+  const add = (k, v) => { const i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = v; f.appendChild(i); };
+  add('title', x.label); add('date', `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+  add('before', String(x.remind ? x.before || 3 : 3)); add('yearly', x.rule ? '' : '1');
+  document.body.appendChild(f); f.submit(); f.remove();
+}
+
+const HONOR = ['Visit a place that was special to them', 'Cook or order their favorite meal', 'Gather people who loved them to share stories', 'Write them a letter', 'Give to a cause they cared about', 'Look through photos, or add one to the Memory Vault', 'Do something they loved to do', 'Keep the day quiet and simple'];
+function honorPlan(id) {
+  const x = datesList().find(d => d.id === id);
+  if (!x) return home();
+  const who = x.who || L(), n = daysUntil(x);
+  const picked = x.plan || [];
+  render(`<button class="back" onclick="home()">Home</button>
+    <span class="eyebrow">${esc(x.label)} · ${n === 0 ? 'Today' : dayName(nextOn(x))}</span>
+    <h2>${n === 0 ? 'Getting through today' : `Planning how to honor ${esc(who)}`}</h2>
+    <p class="muted">There is no right way to spend this day. Some people fill it with remembering; others keep it quiet. Choose anything that feels right, or nothing at all.</p>
+    <div class="options">${HONOR.map((t, i) => `<label class="task"><input type="checkbox" data-h="${i}" ${picked.includes(i) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
+    <div class="field"><label for="hn">Anything else you’d like to remember for the day <span class="muted small" style="font-weight:600">(optional)</span></label><textarea id="hn" rows="3" class="ta">${esc(x.note || '')}</textarea></div>
+    <div class="card prayer"><p class="text">Lord, this day is ${n === 0 ? 'here' : 'coming'}, and my heart already feels it. Help me honor ${esc(who)} in a way that feels right. Hold me in the hours before, on the day, and after. Amen.</p></div>
+    <div class="options">
+      <button onclick="support()"><span class="t">Let someone know<span class="muted small">It’s okay to ask someone to check on you that day</span></span></button>
+      <button onclick="guide('anniversaries')"><span class="t">Read: Birthdays and anniversaries<span class="muted small">A Grief Journey guide</span></span></button>
+      <button onclick="audioPlay('today')"><span class="t">Listen: Getting through today<span class="muted small">From the audio library</span></span></button>
+    </div>`);
+  const store = () => saveDates(datesList().map(d => d.id === id ? { ...d, plan: [...app.querySelectorAll('[data-h]')].filter(c => c.checked).map(c => +c.dataset.h), note: $('#hn').value } : d));
+  app.querySelectorAll('[data-h]').forEach(c => c.onchange = store);
+  $('#hn').onchange = store;
+}
+
+/* ---------- Memory book ---------- */
+/* Turns the Memory Vault into a keepsake that can be saved as a PDF or printed. Part of Plus. */
+const book = { who: '', which: 'all', letters: false, words: '' };
+function bookSetup() { plusOnly(() => {
+  if (!book.who && focusName()) book.who = focusName();
+  const people = profile.people;
+  render(`<button class="back" onclick="vaultScreen()">Memory Vault</button>
+    <div class="plus-head"><span class="eyebrow">Memory book</span><h2>A keepsake of ${esc(book.who || L())}</h2>
+    <p class="muted">We’ll gather your memories into a book you can save as a PDF, print at home, or take to a print shop to have bound.</p></div>
+    ${people.length > 1 ? `<div><p class="muted small" style="margin-bottom:8px">Who is this book for?</p><div class="chips" id="bw">${people.map(p => `<button class="chip" data-w="${esc(p.name)}" aria-pressed="${book.who === p.name}">${esc(p.name)}</button>`).join('')}<button class="chip" data-w="" aria-pressed="${!book.who}">All of them</button></div></div>` : ''}
+    <div><p class="muted small" style="margin-bottom:8px">Which memories?</p><div class="chips" id="bh"><button class="chip" data-h="all" aria-pressed="${book.which === 'all'}">All of them</button><button class="chip" data-h="fav" aria-pressed="${book.which === 'fav'}">Only my favorites</button></div></div>
+    <label class="task"><input type="checkbox" id="bl" ${book.letters ? 'checked' : ''}><span>Include my letters to them<br><span class="muted small">Letters are private, so they’re left out unless you choose.</span></span></label>
+    <div class="field"><label for="bd">A few words for the first page <span class="muted small" style="font-weight:600">(optional)</span></label><textarea id="bd" rows="3" class="ta" placeholder="For Michael, with all my love.">${esc(book.words)}</textarea></div>
+    <p id="bmsg" class="muted" role="status" hidden></p>
+    <button class="btn" id="bgo">See my book</button>`, false, { tab: 'remember' });
+  app.querySelectorAll('#bw .chip').forEach(c => c.onclick = () => { book.who = c.dataset.w; bookSetup(); });
+  app.querySelectorAll('#bh .chip').forEach(c => c.onclick = () => { book.which = c.dataset.h; app.querySelectorAll('#bh .chip').forEach(o => o.setAttribute('aria-pressed', o === c)); });
+  $('#bgo').onclick = () => {
+    book.letters = $('#bl').checked; book.words = $('#bd').value.trim();
+    if (!bookItems().length) { const m = $('#bmsg'); m.hidden = false; m.textContent = book.which === 'fav' ? 'None of these memories are favorites yet. Choose “All of them”, or add favorites in your Memory Vault.' : 'There are no memories to include yet. Add a few to your Memory Vault first.'; return; }
+    bookView();
+  };
+}, 'book'); }
+const bookItems = () => vaultItems().filter(m => (!book.who || !m.who || m.who === book.who) && (book.which !== 'fav' || m.fav) && (book.letters || m.kind !== 'letter') && m.kind !== 'moment').sort((a, b) => a.created - b.created);
+function bookView() {
+  const items = bookItems(), name = book.who || L();
+  const p = profile.people.find(x => x.name === book.who) || (profile.people.length === 1 ? profile.people[0] : null);
+  const years = p && p.passed ? `<p class="bk-years">${fmtDay(p.passed)}</p>` : '';
+  const page = (m) => { const k = KINDS[m.kind] || KINDS.story; return `<article class="bk-page">
+      <span class="eyebrow">${esc(k.label)}</span>
+      ${m.kind === 'letter' ? `<h3>Dear ${esc(m.who || name)},</h3>` : m.title ? `<h3>${esc(m.title)}</h3>` : ''}
+      ${m.date ? `<p class="bk-date">${fmtDay(m.date)}</p>` : ''}
+      ${m.media && m.media.type === 'image' ? `<div class="mem-media bk-photo" data-media="${m.id}"></div>` : ''}
+      ${m.media && m.media.type === 'video' ? `<div class="mem-media bk-photo" data-media="${m.id}" data-thumb></div>` : ''}
+      ${m.text ? `<p class="bk-text">${esc(m.text)}</p>` : ''}
+      ${m.media && m.media.type === 'audio' ? '<p class="bk-date">A voice recording, kept in the Memory Vault</p>' : ''}
+    </article>`; };
+  render(`<div class="book-tools"><button class="back" onclick="bookSetup()">Change what’s included</button>
+    <button class="btn" id="bprint">Save as PDF or print</button>
+    <p class="muted small">On iPhone, tap the button above, then tap the Share button at the top of the print screen and choose “Save to Files” to keep it as a PDF. To have it printed and bound, take the PDF to any print shop or upload it to a photo book service.</p></div>
+    <div class="book">
+      <section class="bk-cover">${MARK}<span class="eyebrow">In loving memory</span><h1>${esc(name)}</h1>${years}
+        ${book.words ? `<p class="bk-words">${esc(book.words)}</p>` : ''}<p class="bk-by">Remembered by ${esc(profile.name)}</p></section>
+      ${items.map(page).join('')}
+      <section class="bk-end"><blockquote>“For I am persuaded, that neither death, nor life … shall be able to separate us from the love of God, which is in Christ Jesus our Lord.”</blockquote><cite>Romans 8:38–39 (KJV)</cite>
+        <p class="bk-by">Made with love in Still With You</p></section>
+    </div>`, false, { tab: 'remember', cls: 'book-screen' });
+  $('#bprint').onclick = () => window.print();
+}
+
 /* ---------- Audio library and Grief Journey guides (Plus) ---------- */
 /* The words live in public/swy-content.js, loaded the first time either is opened. "The next five minutes" and two guides are free. */
 let contentLoad = null;
@@ -1440,6 +1624,8 @@ function plansScreen(feature = '') {
     : feature === 'vault' ? `Keep every memory of ${esc(L())} in one safe place.`
     : feature === 'audio' ? 'Prayers and Scripture, read aloud, for when reading feels like too much.'
     : feature === 'journey' ? 'Gentle guides for every part of grief, whenever you need them.'
+    : feature === 'book' ? `Turn your memories of ${esc(L())} into a keepsake book.`
+    : feature === 'dates' ? 'A gentle heads-up before the days that matter most.'
     : 'More room to remember, and more ways to be held.';
   const trial = !plan.everSubscribed;
   const back = profile.people.length ? 'home()' : 'welcome()';
@@ -1450,6 +1636,8 @@ function plansScreen(feature = '') {
       <li><span><strong>A grief companion to talk with</strong><br><span class="muted small">Say what’s on your heart and receive a caring, faith-centered response.</span></span></li>
       <li><span><strong>Your Memory Vault</strong><br><span class="muted small">Photos, stories, recipes, songs, and letters, kept private and safe.</span></span></li>
       <li><span><strong>The audio library</strong><br><span class="muted small">Morning, evening, and sleep prayers, Scripture meditations, guided breathing, and short devotionals, read aloud.</span></span></li>
+      <li><span><strong>A printable memory book</strong><br><span class="muted small">Turn your Memory Vault into a keepsake to save as a PDF, print, or have bound.</span></span></li>
+      <li><span><strong>Gentle reminders before hard dates</strong><br><span class="muted small">Only for the dates you choose, with help planning how to honor them.</span></span></li>
       <li><span><strong>Every Grief Journey guide</strong><br><span class="muted small">Holidays, anniversaries, returning to work, belongings, and guides for grieving a spouse, parent, child, sibling, or friend.</span></span></li>
       <li><span><strong>Backup across your devices</strong><br><span class="muted small">Nothing you’ve saved is lost if you lose your phone.</span></span></li>
     </ul>
