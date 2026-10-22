@@ -79,3 +79,19 @@ alter table public.admin_settings enable row level security;
 drop policy if exists "Owner settings" on public.admin_settings;
 create policy "Owner settings" on public.admin_settings
   for all to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+
+-- Plus backup: daily restore points (kept 30 days) and ones made by hand. Each person sees only their own.
+create table if not exists public.user_backups (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  auto boolean not null default true,
+  label text check (char_length(label) <= 80),
+  data jsonb not null check (pg_column_size(data) < 5000000),
+  created_at timestamptz not null default now()
+);
+create index if not exists user_backups_user_idx on public.user_backups (user_id, created_at desc);
+alter table public.user_backups enable row level security;
+
+drop policy if exists "Own backups" on public.user_backups;
+create policy "Own backups" on public.user_backups
+  for all to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
