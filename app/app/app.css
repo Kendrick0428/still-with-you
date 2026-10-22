@@ -341,3 +341,42 @@ button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-c
 .composer .ta { flex: 1; min-width: 0; resize: none; font-size: 1.02rem; padding: 12px 14px; }
 .composer .play { padding: 12px 18px; }
 @media (prefers-reduced-motion: reduce) { .typing i { animation: none; } }
+
+/* ---------- Audio library and Grief Journey ---------- */
+.lib-cat { display: flex; flex-direction: column; gap: 10px; }
+.cat-sub { font-size: .9rem; color: var(--ink-2); margin-top: 2px; }
+.track { display: flex; align-items: center; gap: 14px; text-align: left; background: var(--surface); border: 1px solid var(--hair); border-radius: 20px; padding: 12px 16px 12px 12px; color: var(--ink); transition: transform .15s ease; }
+.track:active { transform: scale(.98); }
+.track .well { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: var(--blue); color: var(--blue-ink); }
+.track .well svg { width: 22px; height: 22px; }
+.track.locked .well { background: var(--blue-soft); color: var(--blue); }
+.track .tt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.track strong { font-weight: 600; line-height: 1.3; }
+.track small { font-size: .86rem; color: var(--ink-2); line-height: 1.35; }
+.track .len { flex: none; font-size: .8rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.fav-dot { color: var(--gold); }
+.hours.learn button:first-child { background: linear-gradient(100deg, var(--gold-wash), var(--surface)); }
+.player { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+.orb { width: 160px; height: 160px; border-radius: 50%; margin: 4px 0 12px; transform: scale(.92); transition: transform 1.2s ease;
+  background: radial-gradient(circle at 50% 42%, var(--sun) 0 18%, var(--glow) 46%, color-mix(in srgb, var(--glow) 25%, transparent) 68%, transparent 71%); }
+.orb.on { animation: orb 6s ease-in-out infinite; }
+@keyframes orb { 0%, 100% { transform: scale(.9); } 50% { transform: scale(1.05); } }
+.ctrls { display: flex; align-items: center; justify-content: center; gap: 22px; margin: 4px 0; }
+.ctrls button { border: 1px solid var(--hair); background: var(--surface); width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); padding: 0; }
+.ctrls button svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ctrls .big { width: 76px; height: 76px; background: var(--blue); color: var(--blue-ink); border: 0; box-shadow: 0 14px 30px -14px var(--blue); }
+.ctrls .big svg { width: 36px; height: 36px; }
+.ctrls button:active { transform: scale(.95); }
+.center { justify-content: center; }
+.prog { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.prog input[type="range"] { width: 100%; accent-color: var(--blue); }
+.prog .times { display: flex; justify-content: space-between; font-size: .8rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.readalong { display: flex; flex-direction: column; gap: 14px; padding-top: 18px; border-top: 1px solid var(--hair); }
+.readalong p { font-family: var(--display); font-size: 1.14rem; line-height: 1.55; color: var(--ink-2); opacity: .6; cursor: pointer; transition: opacity .6s ease, color .6s ease; font-variation-settings: "SOFT" 100; }
+.readalong p.now { opacity: 1; color: var(--ink); }
+.lead-in { font-family: var(--display); font-size: 1.24rem; line-height: 1.5; font-variation-settings: "SOFT" 100; }
+.guide-sec { display: flex; flex-direction: column; gap: 8px; }
+.guide-sec h3 { font-size: 1.25rem; }
+.guide-sec p { font-size: 1.04rem; line-height: 1.65; }
+.options button[aria-pressed="true"] { border-color: var(--gold); background: var(--gold-wash); }
+@media (prefers-reduced-motion: reduce) { .orb.on { animation: none; transform: none; } }
