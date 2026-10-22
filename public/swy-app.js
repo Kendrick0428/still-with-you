@@ -54,7 +54,7 @@ async function refreshPlan() {
 const plusOpen = () => !plansOn() || isPlus();
 const plusOnly = (open, feature) => plusOpen() ? open() : plansScreen(feature);
 
-const snapshot = () => ({ v: 1, profile, settings: { ...settings, pin: '' }, tasks: loadJSON('swy-tasks', {}), vault: loadJSON('swy-vault', []), dates: loadJSON('swy-dates', []) });
+const snapshot = () => ({ v: 1, profile, settings: { ...settings, pin: '' }, tasks: loadJSON('swy-tasks', {}), vault: loadJSON('swy-vault', []), dates: loadJSON('swy-dates', []), ...(isPlus() ? { chat: loadJSON('swy-chat', []) } : {}) });
 let pushTimer = null;
 function queueSync() {
   if (!signedIn()) return;
@@ -67,6 +67,7 @@ function adopt(remote) {
   if (remote.tasks) { try { localStorage.setItem('swy-tasks', JSON.stringify(remote.tasks)); } catch (e) {} }
   if (remote.vault) { try { localStorage.setItem('swy-vault', JSON.stringify(remote.vault)); } catch (e) {} }
   if (remote.dates) { try { localStorage.setItem('swy-dates', JSON.stringify(remote.dates)); } catch (e) {} }
+  if (remote.chat && isPlus()) { try { localStorage.setItem('swy-chat', JSON.stringify(remote.chat)); } catch (e) {} chat = remote.chat; }
 }
 /* After signing in: the account's saved copy wins if it has anyone in it; otherwise this device's entries move into the account. */
 async function syncAfterSignIn() {
@@ -815,11 +816,7 @@ function settingsScreen() {
       <p class="muted small">Ask for a passcode when the app opens. The full app would use Face ID or your phone’s passcode.</p>
       ${settings.pin ? '<button class="tiny-btn" id="off">Turn off app lock</button>' : `<div class="field"><label for="pin" class="small">Choose a 4-digit code</label><input id="pin" inputmode="numeric" maxlength="4"></div><button class="tiny-btn" id="on">Turn on app lock</button>`}
     </div>
-    <div class="card"><strong>Backup</strong>
-      <label class="task"><input type="checkbox" id="bk" ${settings.backup ? 'checked' : ''}><span>Back up my journal, letters, and memories to my private cloud account</span></label>
-      <p class="muted small">So you never lose what you’ve saved about the people you love. The full app also lets you export everything as a file.</p>
-      <div class="row"><button class="tiny-btn" id="cp">Copy my saved data</button><span id="cpok" class="muted small" hidden>Copied.</span></div>
-    </div>
+    ${backupCard()}
     <div class="card"><strong>Quiet hours</strong>
       <label class="task"><input type="checkbox" id="qh" ${settings.quiet ? 'checked' : ''}><span>Don’t send any notifications during quiet hours</span></label>
       <div class="row"><div class="field"><label for="qf" class="small">From</label><input id="qf" type="time" value="${settings.quietFrom}"></div><div class="field"><label for="qt" class="small">To</label><input id="qt" type="time" value="${settings.quietTo}"></div></div>
@@ -843,8 +840,8 @@ function settingsScreen() {
   if (on) on.onclick = () => { const v = $('#pin').value; if (/^\d{4}$/.test(v)) { settings.pin = v; saveSettings(); settingsScreen(); } else $('#pin').focus(); };
   if (off) off.onclick = () => { settings.pin = ''; saveSettings(); settingsScreen(); };
   const bind = (id, key, prop = 'checked') => { $(id).onchange = (e) => { settings[key] = e.target[prop]; saveSettings(); }; };
-  bind('#bk', 'backup'); bind('#qh', 'quiet'); bind('#qf', 'quietFrom', 'value'); bind('#qt', 'quietTo', 'value');
-  $('#cp').onclick = async () => {
+  bind('#qh', 'quiet'); bind('#qf', 'quietFrom', 'value'); bind('#qt', 'quietTo', 'value');
+  if ($('#cp')) $('#cp').onclick = async () => {
     const data = JSON.stringify({ profile, settings: { ...settings, pin: undefined } }, null, 2);
     try { await navigator.clipboard.writeText(data); $('#cpok').hidden = false; } catch (e) { $('#cpok').textContent = 'Copy isn’t available here.'; $('#cpok').hidden = false; }
   };
@@ -1159,7 +1156,7 @@ function memoryView(id, justSaved = false) {
   $('#delno').onclick = () => { $('#delask').hidden = true; };
   $('#delyes').onclick = async () => {
     saveVault(vaultItems().filter(x => x.id !== id));
-    if (m.media) { mediaDB.del(id); if (signedIn()) acct().removeMedia(id); }
+    if (m.media) { mediaDB.del(id); delete objectUrls[id]; forgetMedia(id); }
     vaultScreen();
   };
 }
@@ -1188,7 +1185,7 @@ const CRISIS = /suicid|kill (myself|me)|end (my|it all)|end my life|take my (own
 const CARE_CARD = `<div class="card care"><strong>You matter, and you don’t have to carry this alone.</strong><p>If you are thinking about ending your life or might hurt yourself, please call or text <strong>988</strong> (Suicide &amp; Crisis Lifeline, US) or your local emergency number now. You can also reach out to someone you trust.</p><div class="row"><a class="tiny-btn" href="tel:988">Call 988</a><a class="tiny-btn" href="sms:988">Text 988</a></div></div>`;
 let chat = loadJSON('swy-chat', []);
 let chatBusy = false;
-const saveChat = () => { chat = chat.slice(-60); try { localStorage.setItem('swy-chat', JSON.stringify(chat)); } catch (e) {} };
+const saveChat = () => { chat = chat.slice(-60); try { localStorage.setItem('swy-chat', JSON.stringify(chat)); } catch (e) {} if (isPlus()) queueSync(); };
 const paras = (t) => t.split(/\n{2,}/).map(x => `<p>${esc(x).replace(/\n/g, '<br>')}</p>`).join('');
 const bubble = (m) => m.role === 'care' ? CARE_CARD
   : m.role === 'note' ? `<p class="muted small chat-note">${esc(m.content)}</p>`
@@ -1616,6 +1613,148 @@ function guide(id) { withContent(({ GUIDE_GROUPS, GUIDES }) => {
   $('#wr').onclick = () => journal(g.question);
 }); }
 
+/* ---------- Backup and sync (Plus) ---------- */
+/* Free accounts already sync everything. Plus adds a restore point each day (kept 30 days), restore points made by hand,
+   companion conversations on every device, deleted photos kept for 30 days so a restore can bring them back,
+   and a complete download (with photos and recordings) that can be restored on any device. */
+const backupsOn = () => signedIn() && plusOpen() && !!acct().backups;
+async function dailyRestorePoint() {
+  if (!backupsOn() || !profile.people.length) return;
+  const today = new Date().toDateString();
+  if (localStorage.getItem('swy-lastpoint') === today) return;
+  const list = await acct().backups.list();
+  if (!list) return;
+  if (!list.some(b => b.auto && new Date(b.created_at).toDateString() === today)) { const r = await acct().backups.save(snapshot(), true); if (r.error) return; }
+  try { localStorage.setItem('swy-lastpoint', today); } catch (e) {}
+  acct().backups.prune();
+}
+/* Photos and recordings deleted by a Plus member stay in their private folder for 30 days, so restoring can bring them back. */
+const TRASH_DAYS = 30;
+function forgetMedia(id) {
+  if (!signedIn()) return;
+  if (isPlus()) { settings.mediaTrash = [...(settings.mediaTrash || []).filter(t => t.id !== id), { id, at: Date.now() }]; saveSettings(); }
+  else acct().removeMedia(id);
+}
+function emptyTrash() {
+  if (!signedIn() || !settings.mediaTrash || !settings.mediaTrash.length) return;
+  const old = settings.mediaTrash.filter(t => Date.now() - t.at > TRASH_DAYS * 864e5);
+  if (!old.length) return;
+  old.forEach(t => acct().removeMedia(t.id));
+  settings.mediaTrash = settings.mediaTrash.filter(t => !old.includes(t)); saveSettings();
+}
+/* Puts a saved copy back in place. Memories in the copy that still have photos in the trash take them back out. */
+function restoreFrom(data) {
+  adopt(data);
+  profile.focus = profile.focus ?? -1;
+  if (data.chat) { chat = data.chat; saveChat(); }
+  const ids = new Set(vaultItems().map(m => m.id));
+  settings.mediaTrash = (settings.mediaTrash || []).filter(t => !ids.has(t.id));
+  saveSettings(); queueSync();
+}
+const pointName = (b) => { const d = new Date(b.created_at); return `${d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}, ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`; };
+
+function backupCard() {
+  const counts = () => { const v = vaultItems(); return `${v.length} ${v.length === 1 ? 'memory' : 'memories'}, ${v.filter(m => m.media).length} with photos or recordings`; };
+  if (!acct()) return `<div class="card"><strong>Backup</strong><p class="muted small">Everything is saved on this device.</p>
+      <div class="row"><button class="tiny-btn" id="cp">Copy my saved data</button><span id="cpok" class="muted small" hidden>Copied.</span></div></div>`;
+  if (backupsOn()) return `<div class="card backup-card"><strong>Backup and sync <span class="vc-plus">Plus</span></strong>
+      <p class="muted small">Everything syncs privately to your account, including your conversations with the companion. A restore point is saved each day and kept for 30 days. ${counts()}.</p>
+      <div class="row"><button class="tiny-btn" onclick="backupScreen()">Restore points</button><button class="tiny-btn" onclick="exportAll()">Download everything</button><button class="tiny-btn" onclick="importAll()">Restore from a file</button></div></div>`;
+  return `<div class="card"><strong>Backup</strong>
+      <p class="muted small">${signedIn() ? `Your entries sync privately to your account. ${counts()}.` : 'Right now your entries are saved only on this device. A free account keeps them safe if you lose your phone.'}</p>
+      <div class="row"><button class="tiny-btn" id="cp">Copy my saved data</button><span id="cpok" class="muted small" hidden>Copied.</span></div>
+      ${plansOn() ? `<p class="muted small">Still With You Plus adds a restore point every day for 30 days, a complete download with your photos and recordings, and your companion conversations on every device.</p>
+      <div class="row"><button class="tiny-btn" onclick="plansScreen('backup')">See Plus</button></div>` : ''}</div>`;
+}
+
+async function backupScreen(note = '') {
+  if (!backupsOn()) return plusOnly(settingsScreen, 'backup');
+  render(`<button class="back" onclick="settingsScreen()">Settings</button>
+    <div class="plus-head"><span class="eyebrow">Backup and sync</span><h2>Restore points</h2>
+    <p class="muted">A copy of everything is saved each day you open Still With You and kept for 30 days. If something is changed or deleted by mistake, you can go back to an earlier copy.</p></div>
+    ${note ? `<p class="saved-note">${esc(note)}</p>` : ''}
+    <button class="btn" id="now">Make a restore point now</button>
+    <div id="pts" class="dates"><p class="muted">Loading your restore points…</p></div>
+    <p class="note">Restore points keep your loved ones’ details, memories, letters, dates, and settings. Photos and recordings you delete are kept privately for 30 days, so restoring a copy from before brings them back. Only you can see any of this.</p>`);
+  $('#now').onclick = async function () {
+    this.disabled = true; this.textContent = 'Saving…';
+    const r = await acct().backups.save(snapshot(), false, 'Made by you');
+    backupScreen(r.error || 'Restore point saved.');
+  };
+  const list = await acct().backups.list(), box = $('#pts');
+  if (!box) return;
+  if (!list) { box.innerHTML = '<p class="muted">We couldn’t load your restore points just now. Please check your connection.</p>'; return; }
+  if (!list.length) { box.innerHTML = '<p class="muted">No restore points yet. One will be saved automatically today.</p>'; return; }
+  box.innerHTML = list.map(b => `<div class="date-row"><button class="dr-main" data-b="${b.id}"><span class="dr-day"><b>${new Date(b.created_at).getDate()}</b>${new Date(b.created_at).toLocaleDateString(undefined, { month: 'short' })}</span>
+    <span class="tt"><strong>${esc(pointName(b))}</strong><small>${esc(b.label || (b.auto ? 'Saved automatically' : 'Made by you'))}</small></span></button></div>`).join('');
+  box.querySelectorAll('[data-b]').forEach(el => el.onclick = () => {
+    const b = list.find(x => x.id === el.dataset.b);
+    const ask = document.createElement('div'); ask.className = 'sheet';
+    ask.innerHTML = `<p>Go back to the copy from ${esc(pointName(b))}? Anything added since then will be replaced. We’ll save a restore point of how things are now first, so you can change your mind.</p>
+      <div class="row" style="margin-top:12px"><button class="tiny-btn" id="ry">Yes, restore this copy</button><button class="tiny-btn" id="rn">Cancel</button></div>`;
+    app.querySelectorAll('.sheet').forEach(x => x.remove());
+    el.parentElement.after(ask);
+    $('#rn').onclick = () => ask.remove();
+    $('#ry').onclick = async function () {
+      this.disabled = true; this.textContent = 'Restoring…';
+      const data = await acct().backups.get(b.id);
+      if (!data) { this.textContent = 'We couldn’t open that copy. Please try again.'; return; }
+      const r = await acct().backups.save(snapshot(), false, 'Before restoring an earlier copy');
+      if (r.error) { this.disabled = false; this.textContent = 'Yes, restore this copy'; return; }
+      restoreFrom(data);
+      backupScreen(`Restored the copy from ${pointName(b)}.`);
+    };
+  });
+}
+
+/* A single file with everything, including photos, videos, and recordings, that can be restored on any device. */
+const blobToData = (b) => new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => res(null); r.readAsDataURL(b); });
+async function exportAll() {
+  if (!backupsOn() && plansOn()) return plansScreen('backup');
+  render(`<button class="back" onclick="settingsScreen()">Settings</button><span class="eyebrow">Download everything</span>
+    <h2>Gathering your memories…</h2><p class="muted" id="ex">This can take a minute if you have many photos or videos.</p>`);
+  const media = {}, items = vaultItems().filter(m => m.media);
+  for (const [i, m] of items.entries()) {
+    const el = $('#ex'); if (el) el.textContent = `Adding photos and recordings, ${i + 1} of ${items.length}…`;
+    let b = await mediaDB.get(m.id);
+    if (!b) { const src = await mediaSrc(m); if (src) b = await fetch(src).then(r => r.ok ? r.blob() : null).catch(() => null); }
+    if (b) media[m.id] = await blobToData(b);
+  }
+  const file = new Blob([JSON.stringify({ app: 'Still With You', kind: 'backup', v: 1, made: new Date().toISOString(), data: { ...snapshot(), chat }, media })], { type: 'application/json' });
+  const url = URL.createObjectURL(file), name = `still-with-you-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  render(`<button class="back" onclick="settingsScreen()">Settings</button><span class="eyebrow">Download everything</span>
+    <h2>Your backup is ready</h2>
+    <p class="muted">It holds everything you’ve saved, including ${Object.keys(media).length} photos, videos, and recordings. Keep it somewhere safe, like your Files app or a computer. It isn’t locked with a password, so store it as carefully as a photo album.</p>
+    <a class="btn" href="${url}" download="${name}" style="text-align:center;text-decoration:none">Save the file</a>
+    <p class="muted small">To bring it back, open Settings, choose Restore from a file, and pick this file.</p>`);
+}
+function importAll() {
+  if (!backupsOn() && plansOn()) return plansScreen('backup');
+  render(`<button class="back" onclick="settingsScreen()">Settings</button><span class="eyebrow">Restore from a file</span>
+    <h2>Bring back a backup</h2>
+    <p class="muted">Choose a backup file you downloaded from Still With You. What’s in the file will replace what’s here now${backupsOn() ? ', and we’ll save a restore point first so you can change your mind' : ''}.</p>
+    <label class="btn" style="text-align:center">Choose the backup file<input type="file" id="imf" accept=".json,application/json" hidden></label>
+    <p id="imsg" class="muted" role="status" hidden></p>`);
+  const msg = (t) => { const m = $('#imsg'); m.hidden = false; m.textContent = t; };
+  $('#imf').onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    msg('Reading your backup…');
+    let b; try { b = JSON.parse(await f.text()); } catch (err) { return msg('That file isn’t a Still With You backup.'); }
+    if (!b || b.app !== 'Still With You' || !b.data || !b.data.profile) return msg('That file isn’t a Still With You backup.');
+    if (backupsOn()) await acct().backups.save(snapshot(), false, 'Before restoring from a file');
+    let n = 0;
+    for (const [id, d] of Object.entries(b.media || {})) {
+      try { const blob = await fetch(d).then(r => r.blob()); await mediaDB.put(id, blob); delete objectUrls[id]; n++; } catch (err) {}
+    }
+    restoreFrom(b.data);
+    saveVault(vaultItems().map(m => b.media && b.media[m.id] ? { ...m, uploaded: false } : m));
+    backupMedia();
+    render(`<span class="eyebrow">Restore from a file</span><h2>Everything is back</h2>
+      <p class="muted">We restored your backup from ${esc(fmtDate(Date.parse(b.made) || Date.now()))}, including ${n} photos, videos, and recordings.</p>
+      <button class="btn" onclick="home()">Continue</button>`);
+  };
+}
+
 /* ---------- Still With You Plus ---------- */
 let chosenPlan = 'year';
 const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
@@ -1626,6 +1765,7 @@ function plansScreen(feature = '') {
     : feature === 'journey' ? 'Gentle guides for every part of grief, whenever you need them.'
     : feature === 'book' ? `Turn your memories of ${esc(L())} into a keepsake book.`
     : feature === 'dates' ? 'A gentle heads-up before the days that matter most.'
+    : feature === 'backup' ? 'Never lose what you’ve saved about the people you love.'
     : 'More room to remember, and more ways to be held.';
   const trial = !plan.everSubscribed;
   const back = profile.people.length ? 'home()' : 'welcome()';
@@ -1639,7 +1779,7 @@ function plansScreen(feature = '') {
       <li><span><strong>A printable memory book</strong><br><span class="muted small">Turn your Memory Vault into a keepsake to save as a PDF, print, or have bound.</span></span></li>
       <li><span><strong>Gentle reminders before hard dates</strong><br><span class="muted small">Only for the dates you choose, with help planning how to honor them.</span></span></li>
       <li><span><strong>Every Grief Journey guide</strong><br><span class="muted small">Holidays, anniversaries, returning to work, belongings, and guides for grieving a spouse, parent, child, sibling, or friend.</span></span></li>
-      <li><span><strong>Backup across your devices</strong><br><span class="muted small">Nothing you’ve saved is lost if you lose your phone.</span></span></li>
+      <li><span><strong>Backup and sync</strong><br><span class="muted small">A restore point every day for 30 days, a complete download with your photos, and your companion conversations on every device.</span></span></li>
     </ul>
     <div class="plans" role="radiogroup" aria-label="Choose a plan">
       <button class="plan" role="radio" data-plan="year"><span class="tag">Best value</span><span class="radio"></span><span class="t"><strong>Yearly</strong><span class="muted small">About $4.08 a month</span></span><span class="price">$49<span class="muted small"> / year</span></span></button>
@@ -1768,6 +1908,7 @@ let booted = false;
 async function boot() {
   if (booted) return; booted = true;
   if (signedIn()) { try { await syncAfterSignIn(); } catch (e) {} }
+  refreshPlan().then(() => { dailyRestorePoint(); emptyTrash(); }).catch(() => {});
   if (handleAuthLink()) return;
   const ret = new URLSearchParams(location.search).get('plan');
   if (ret) history.replaceState(null, '', location.pathname);

@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 type Snapshot = Record<string, unknown>;
+type Backup = { id: string; auto: boolean; label: string | null; created_at: string };
 type Plan = { available: boolean; plan: "free" | "plus"; status?: string; interval?: string | null; trialEnds?: number | null; renews?: number | null; cancelsAtEnd?: boolean; error?: string };
 
 declare global {
@@ -26,6 +27,12 @@ declare global {
       mediaUrl: (id: string) => Promise<string | null>;
       removeMedia: (id: string) => Promise<void>;
       companion: (body: unknown, onText: (t: string) => void) => Promise<{ error?: string }>;
+      backups: {
+        list: () => Promise<Backup[] | null>;
+        save: (data: Snapshot, auto: boolean, label?: string) => Promise<{ error?: string }>;
+        get: (id: string) => Promise<Snapshot | null>;
+        prune: () => Promise<void>;
+      };
     };
   }
 }
@@ -174,8 +181,36 @@ export default function AccountBridge() {
             return { error: "We couldn’t reach Still With You just now. Please check your connection." };
           }
         },
+        // Plus restore points in the user_backups table, private to each person (see supabase/schema.sql).
+        backups: {
+          async list() {
+            if (!sb || !userId) return null;
+            const { data, error } = await sb.from("user_backups").select("id, auto, label, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(60);
+            if (error) { console.error("Couldn’t list restore points", error); return null; }
+            return data as Backup[];
+          },
+          async save(data, auto, label) {
+            if (!sb || !userId) return { error: "You’re not signed in." };
+            const { error } = await sb.from("user_backups").insert({ user_id: userId, data, auto, label: label ?? null });
+            if (error) console.error("Couldn’t save restore point", error);
+            return error ? { error: "We couldn’t make a backup just now. Please try again in a moment." } : {};
+          },
+          async get(id) {
+            if (!sb || !userId) return null;
+            const { data } = await sb.from("user_backups").select("data").eq("id", id).eq("user_id", userId).maybeSingle();
+            return (data?.data as Snapshot) ?? null;
+          },
+          // Daily restore points are kept for 30 days; ones made by hand are kept until there are more than 10.
+          async prune() {
+            if (!sb || !userId) return;
+            await sb.from("user_backups").delete().eq("user_id", userId).eq("auto", true).lt("created_at", new Date(Date.now() - 30 * 864e5).toISOString());
+            const { data } = await sb.from("user_backups").select("id").eq("user_id", userId).eq("auto", false).order("created_at", { ascending: false }).range(10, 100);
+            if (data?.length) await sb.from("user_backups").delete().in("id", data.map((b) => b.id));
+          },
+        },
         async deleteData() {
           if (!sb || !userId) return { error: "You’re not signed in." };
+          await sb.from("user_backups").delete().eq("user_id", userId);
           const { error } = await sb.from("user_data").delete().eq("user_id", userId);
           const { data: files } = await sb.storage.from("vault").list(userId, { limit: 1000 });
           if (files?.length) await sb.storage.from("vault").remove(files.map((f) => `${userId}/${f.name}`));
